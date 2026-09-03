@@ -93,7 +93,8 @@ export function startNewRound(
   settings: GameSettings,
   players: PlayerState[],
   currentRoundNumber: number = 1,
-  previousWinnerId?: string
+  previousWinnerId?: string,
+  designatedStartingPlayerId?: string
 ): EngineSession {
   const fullSet = generateDominoSet(settings.dominoSet);
   const playerIds = players.map((p) => p.id);
@@ -102,14 +103,22 @@ export function startNewRound(
   const deal = dealTiles(fullSet, playerIds, settings.tilesPerPlayer, {
     protectedTileIds: settings.protectedTiles,
     startingTileId: settings.startingTileRule === 'specific-tile' ? settings.specificStartingTile : undefined,
-    startingPlayerId: previousWinnerId,
+    startingPlayerId: designatedStartingPlayerId || previousWinnerId,
   });
 
-  // Determine starting player
+  // Determine starting player:
+  // The creator/host decides who will start and put the first domino!
   let startingPlayerId = playerIds[0];
   let startingTile: DominoTile | undefined;
 
-  if (settings.startingTileRule === 'previous-winner' && previousWinnerId && playerIds.includes(previousWinnerId)) {
+  if (designatedStartingPlayerId && playerIds.includes(designatedStartingPlayerId)) {
+    // Creator explicitly selected this player to start
+    startingPlayerId = designatedStartingPlayerId;
+  } else if (settings.startingTileRule === 'host-selects') {
+    // By default, the room creator / host starts the round
+    const hostPlayer = players.find((p) => p.isHost);
+    startingPlayerId = hostPlayer ? hostPlayer.id : playerIds[0];
+  } else if (settings.startingTileRule === 'previous-winner' && previousWinnerId && playerIds.includes(previousWinnerId)) {
     startingPlayerId = previousWinnerId;
   } else if (settings.startingTileRule === 'random') {
     startingPlayerId = playerIds[Math.floor(Math.random() * playerIds.length)];

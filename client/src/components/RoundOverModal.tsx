@@ -1,12 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { GameState, DominoTile } from '../../../shared/types.js';
 import { DominoTileView } from './DominoTileView.js';
-import { Trophy, ArrowRight, Play, Eye } from 'lucide-react';
+import { Trophy, ArrowRight, Play, Eye, Crown, Check } from 'lucide-react';
 
 interface RoundOverModalProps {
   state: GameState;
   isHost: boolean;
-  onNextRound: () => void;
+  onNextRound: (startingPlayerId?: string) => void;
 }
 
 export const RoundOverModal: React.FC<RoundOverModalProps> = ({
@@ -15,6 +15,10 @@ export const RoundOverModal: React.FC<RoundOverModalProps> = ({
   onNextRound,
 }) => {
   if (state.phase !== 'round_finished') return null;
+
+  const [selectedStarterId, setSelectedStarterId] = useState<string>(
+    state.roundWinnerId || state.players[0]?.id || ''
+  );
 
   const winner = state.players.find((p) => p.id === state.roundWinnerId);
   const revealedHands = state.revealedHands || {};
@@ -92,6 +96,40 @@ export const RoundOverModal: React.FC<RoundOverModalProps> = ({
           </div>
         </div>
 
+        {/* Host Starting Player Selector for Next Round */}
+        {isHost && (
+          <div className="p-3.5 bg-slate-900/90 border-t border-slate-800 flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Crown size={14} /> Who Starts Round {state.roundNumber + 1}?
+              </span>
+              <span className="text-[10px] text-amber-300/80 font-semibold">Creator Decides</span>
+            </div>
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+              {state.players.map((p) => {
+                const isSelected = selectedStarterId === p.id;
+                const isWinner = p.id === state.roundWinnerId;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setSelectedStarterId(p.id)}
+                    className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                      isSelected
+                        ? 'bg-amber-500/25 border-amber-400 text-white shadow ring-1 ring-amber-400'
+                        : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-700'
+                    }`}
+                  >
+                    <span>{p.nickname}</span>
+                    {isWinner && <span className="text-[10px] text-emerald-400">(Winner)</span>}
+                    {isSelected && <Check size={14} className="text-amber-400" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Modal Footer */}
         <div className="p-4 border-t border-slate-800 flex items-center justify-between bg-slate-950/60">
           <div className="text-xs text-slate-400">
@@ -100,7 +138,7 @@ export const RoundOverModal: React.FC<RoundOverModalProps> = ({
 
           {isHost ? (
             <button
-              onClick={onNextRound}
+              onClick={() => onNextRound(selectedStarterId)}
               className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow-lg transition active:scale-95"
             >
               <Play size={16} /> Start Next Round

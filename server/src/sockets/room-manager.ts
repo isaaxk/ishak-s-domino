@@ -283,7 +283,7 @@ export class RoomManager {
     return { success: true };
   }
 
-  startGame(socketId: string): { success: boolean; error?: string } {
+  startGame(socketId: string, startingPlayerId?: string): { success: boolean; error?: string } {
     const meta = this.socketToPlayer.get(socketId);
     if (!meta) return { success: false, error: 'Not in a room' };
 
@@ -297,8 +297,15 @@ export class RoomManager {
       return { success: false, error: 'At least 2 players are required to start' };
     }
 
-    // Initialize round 1
-    const newSession = startNewRound(meta.roomId, session.state.settings, session.state.players, 1);
+    // Initialize round 1 with creator-chosen starting player
+    const newSession = startNewRound(
+      meta.roomId,
+      session.state.settings,
+      session.state.players,
+      1,
+      undefined,
+      startingPlayerId
+    );
     this.sessions.set(meta.roomId, newSession);
 
     // Save state
@@ -308,7 +315,7 @@ export class RoomManager {
     return { success: true };
   }
 
-  nextRound(socketId: string): { success: boolean; error?: string } {
+  nextRound(socketId: string, startingPlayerId?: string): { success: boolean; error?: string } {
     const meta = this.socketToPlayer.get(socketId);
     if (!meta) return { success: false, error: 'Not in a room' };
 
@@ -330,7 +337,8 @@ export class RoomManager {
       session.state.settings,
       session.state.players,
       nextRoundNumber,
-      winnerId
+      winnerId,
+      startingPlayerId
     );
     this.sessions.set(meta.roomId, newSession);
 

@@ -204,17 +204,17 @@ export function App() {
     });
   };
 
-  // Host start game
-  const handleStartGame = () => {
-    socket.emit('game:start', (res) => {
+  // Host start game with creator-chosen starting player
+  const handleStartGame = (startingPlayerId?: string) => {
+    socket.emit('game:start', { startingPlayerId }, (res) => {
       if (!res.success) showToast(res.error || 'Failed to start game', 'error');
       else playSound('turn');
     });
   };
 
-  // Host next round
-  const handleNextRound = () => {
-    socket.emit('game:next_round', (res) => {
+  // Host next round with creator-chosen starting player
+  const handleNextRound = (startingPlayerId?: string) => {
+    socket.emit('game:next_round', { startingPlayerId }, (res) => {
       if (!res.success) showToast(res.error || 'Failed to start next round', 'error');
       else playSound('turn');
     });

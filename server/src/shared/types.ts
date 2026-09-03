@@ -29,7 +29,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   tilesPerPlayer: 7,
   tilesPerTurn: 1,
   allowDrawing: true,
-  startingTileRule: 'highest-double',
+  startingTileRule: 'host-selects',
   specificStartingTile: 'tile-0-0',
   protectedTiles: ['tile-0-0'],
   protectedBoneyardTiles: 2,
@@ -159,11 +159,13 @@ export interface ClientToServerEvents {
   ) => void;
 
   'game:start': (
-    callback: (res: { success: boolean; error?: string }) => void
+    payload: { startingPlayerId?: string } | ((res: { success: boolean; error?: string }) => void),
+    callback?: (res: { success: boolean; error?: string }) => void
   ) => void;
 
   'game:next_round': (
-    callback: (res: { success: boolean; error?: string }) => void
+    payload: { startingPlayerId?: string } | ((res: { success: boolean; error?: string }) => void),
+    callback?: (res: { success: boolean; error?: string }) => void
   ) => void;
 
   'game:place_tile': (

@@ -46,6 +46,18 @@ describe('Game Engine State Machine & Physical Freedom', () => {
     expect(session.state.currentTurnPlayerId).toBeDefined();
   });
 
+  it('lets the creator choose the player who will start and put the first domino', () => {
+    const players = createTestPlayers();
+
+    // Creator designates player-2 (Bob) to start round 1
+    const session1 = startNewRound('ROOM-1', DEFAULT_SETTINGS, players, 1, undefined, 'player-2');
+    expect(session1.state.currentTurnPlayerId).toBe('player-2');
+
+    // Creator designates player-1 (Alice / Host) to start round 1
+    const session2 = startNewRound('ROOM-1', DEFAULT_SETTINGS, players, 1, undefined, 'player-1');
+    expect(session2.state.currentTurnPlayerId).toBe('player-1');
+  });
+
   it('allows free physical placement (e.g. [6|2] [5|5] [1|4] without rejection)', () => {
     const players = createTestPlayers();
     const session = startNewRound('ROOM-1', { ...DEFAULT_SETTINGS, allowFreePlacement: true }, players, 1);

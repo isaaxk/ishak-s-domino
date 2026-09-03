@@ -77,20 +77,24 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 5. Start Game (Host only)
-  socket.on('game:start', (callback) => {
+  // 5. Start Game (Host/Creator decides who starts)
+  socket.on('game:start', (arg1?: any, arg2?: any) => {
+    const callback = typeof arg1 === 'function' ? arg1 : typeof arg2 === 'function' ? arg2 : () => {};
     try {
-      const result = roomManager.startGame(socket.id);
+      const payload = typeof arg1 === 'object' && arg1 !== null ? arg1 : {};
+      const result = roomManager.startGame(socket.id, payload.startingPlayerId);
       callback(result);
     } catch (err: any) {
       callback({ success: false, error: err.message });
     }
   });
 
-  // 6. Next Round (Host only)
-  socket.on('game:next_round', (callback) => {
+  // 6. Next Round (Host/Creator decides who starts)
+  socket.on('game:next_round', (arg1?: any, arg2?: any) => {
+    const callback = typeof arg1 === 'function' ? arg1 : typeof arg2 === 'function' ? arg2 : () => {};
     try {
-      const result = roomManager.nextRound(socket.id);
+      const payload = typeof arg1 === 'object' && arg1 !== null ? arg1 : {};
+      const result = roomManager.nextRound(socket.id, payload.startingPlayerId);
       callback(result);
     } catch (err: any) {
       callback({ success: false, error: err.message });
