@@ -133,6 +133,8 @@ export interface GameState {
   players: PlayerState[];
   openEnds?: OpenEndInfo[];
   currentOpenEndsSum?: number;
+  canChangeLastMove?: boolean;
+  lastMovePlayerId?: string | null;
 }
 
 export interface ClientToServerEvents {
@@ -180,6 +182,10 @@ export interface ClientToServerEvents {
 
   'game:confirm_turn': (
     callback: (res: { success: boolean; pointsScored?: number; error?: string }) => void
+  ) => void;
+
+  'game:change_last_move': (
+    callback: (res: { success: boolean; error?: string }) => void
   ) => void;
 
   'game:draw_tile': (

@@ -16,6 +16,7 @@ import {
   stageTilePlacement,
   undoStagedTurn,
   confirmTurnAction,
+  changeLastMoveAction,
   drawTileAction,
   passTurnAction,
   EngineSession,
@@ -404,6 +405,21 @@ export class RoomManager {
     if (!session) return { success: false, error: 'Session not found' };
 
     const result = confirmTurnAction(session, meta.playerId);
+    if (result.success) {
+      this.db.saveGameState(meta.roomId, session.state, session.privateHands, session.boneyard);
+      this.broadcastRoomState(meta.roomId);
+    }
+    return result;
+  }
+
+  changeLastMove(socketId: string): { success: boolean; error?: string } {
+    const meta = this.socketToPlayer.get(socketId);
+    if (!meta) return { success: false, error: 'Not in a room' };
+
+    const session = this.sessions.get(meta.roomId);
+    if (!session) return { success: false, error: 'Session not found' };
+
+    const result = changeLastMoveAction(session, meta.playerId);
     if (result.success) {
       this.db.saveGameState(meta.roomId, session.state, session.privateHands, session.boneyard);
       this.broadcastRoomState(meta.roomId);

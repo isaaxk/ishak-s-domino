@@ -1,7 +1,7 @@
 import React from 'react';
 import type { DominoTile, PlacedTile } from '../../../shared/types.js';
 import { DominoTileView } from './DominoTileView.js';
-import { RotateCw, Check, Undo2, Plus, SkipForward } from 'lucide-react';
+import { RotateCw, Check, Undo2, Plus, SkipForward, Edit3 } from 'lucide-react';
 
 interface PlayerHandDockProps {
   hand: DominoTile[];
@@ -9,6 +9,7 @@ interface PlayerHandDockProps {
   selectedTile: DominoTile | null;
   selectedRotation: number;
   isMyTurn: boolean;
+  canChangeLastMove?: boolean;
   currentTurnPlayerName: string;
   boneyardCount: number;
   protectedBoneyardCount: number;
@@ -20,6 +21,7 @@ interface PlayerHandDockProps {
   onRotateTile: () => void;
   onConfirmTurn: () => void;
   onUndoTurn: () => void;
+  onChangeLastMove?: () => void;
   onDrawTile: () => void;
   onPassTurn: () => void;
 }
@@ -30,6 +32,7 @@ export const PlayerHandDock: React.FC<PlayerHandDockProps> = ({
   selectedTile,
   selectedRotation,
   isMyTurn,
+  canChangeLastMove = false,
   currentTurnPlayerName,
   boneyardCount,
   protectedBoneyardCount,
@@ -41,6 +44,7 @@ export const PlayerHandDock: React.FC<PlayerHandDockProps> = ({
   onRotateTile,
   onConfirmTurn,
   onUndoTurn,
+  onChangeLastMove,
   onDrawTile,
   onPassTurn,
 }) => {
@@ -181,8 +185,18 @@ export const PlayerHandDock: React.FC<PlayerHandDockProps> = ({
             <SkipForward size={14} /> Pass
           </button>
 
-          {/* Right Action: Undo / Confirm Turn */}
+          {/* Right Action: Change Move / Undo / Confirm Turn */}
           <div className="flex items-center gap-2">
+            {canChangeLastMove && !hasPending && (
+              <button
+                onClick={onChangeLastMove}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-black shadow-lg border-2 border-amber-300 animate-pulse active:scale-95 transition"
+                title="Change your move before someone plays"
+              >
+                <Edit3 size={15} /> Change Move
+              </button>
+            )}
+
             {hasPending && (
               <button
                 onClick={onUndoTurn}

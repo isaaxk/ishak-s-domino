@@ -293,6 +293,18 @@ export function App() {
     });
   };
 
+  // Change last confirmed move if no one played after
+  const handleChangeLastMove = () => {
+    playSound('click');
+    socket.emit('game:change_last_move', (res) => {
+      if (res.success) {
+        showToast('Move unlocked! You can now adjust, rotate, or change your tile.', 'info');
+      } else {
+        showToast(res.error || 'Cannot change move', 'error');
+      }
+    });
+  };
+
   // Draw tile
   const handleDrawTile = () => {
     socket.emit('game:draw_tile', (res) => {
@@ -430,11 +442,13 @@ export function App() {
             selectedRotation={selectedRotation}
             openEnds={gameState.openEnds}
             isMyTurn={isMyTurn}
+            canChangeLastMove={Boolean(gameState.canChangeLastMove && gameState.lastMovePlayerId === myPlayerId)}
             gameType={gameState.settings.gameType}
             onPlaceTile={handlePlaceTile}
             onRotatePendingTile={handleRotatePendingTile}
             onConfirmTurn={handleConfirmTurn}
             onUndoTurn={handleUndoTurn}
+            onChangeLastMove={handleChangeLastMove}
           />
 
           {/* Player Hand Carousel & Action Dock */}
@@ -444,6 +458,7 @@ export function App() {
             selectedTile={selectedTile}
             selectedRotation={selectedRotation}
             isMyTurn={isMyTurn}
+            canChangeLastMove={Boolean(gameState.canChangeLastMove && gameState.lastMovePlayerId === myPlayerId)}
             currentTurnPlayerName={currentTurnPlayer?.nickname || 'Opponent'}
             boneyardCount={gameState.boneyardCount}
             protectedBoneyardCount={gameState.protectedBoneyardCount}
@@ -458,6 +473,7 @@ export function App() {
             onRotateTile={handleRotateTile}
             onConfirmTurn={handleConfirmTurn}
             onUndoTurn={handleUndoTurn}
+            onChangeLastMove={handleChangeLastMove}
             onDrawTile={handleDrawTile}
             onPassTurn={handlePassTurn}
           />

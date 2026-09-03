@@ -137,6 +137,16 @@ io.on('connection', (socket) => {
     }
   });
 
+  // 9b. Change Last Move (Revert last confirmed move if no one played after)
+  socket.on('game:change_last_move', (callback) => {
+    try {
+      const result = roomManager.changeLastMove(socket.id);
+      callback(result);
+    } catch (err: any) {
+      callback({ success: false, error: err.message });
+    }
+  });
+
   // 10. Draw Tile
   socket.on('game:draw_tile', (callback) => {
     try {

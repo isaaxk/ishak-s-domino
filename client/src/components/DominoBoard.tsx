@@ -14,6 +14,7 @@ import {
   Check,
   Undo2,
   Sparkles,
+  Edit3,
 } from 'lucide-react';
 
 interface DominoBoardProps {
@@ -23,6 +24,7 @@ interface DominoBoardProps {
   selectedRotation: number;
   openEnds?: OpenEndInfo[];
   isMyTurn: boolean;
+  canChangeLastMove?: boolean;
   gameType: 'classic' | 'all-fives';
   onPlaceTile: (placement: {
     tileId: string;
@@ -34,6 +36,7 @@ interface DominoBoardProps {
   onRotatePendingTile?: (tileId: string, newRotation: number) => void;
   onConfirmTurn?: () => void;
   onUndoTurn?: () => void;
+  onChangeLastMove?: () => void;
 }
 
 export const DominoBoard: React.FC<DominoBoardProps> = ({
@@ -43,11 +46,13 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
   selectedRotation,
   openEnds = [],
   isMyTurn,
+  canChangeLastMove = false,
   gameType,
   onPlaceTile,
   onRotatePendingTile,
   onConfirmTurn,
   onUndoTurn,
+  onChangeLastMove,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -601,6 +606,21 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
           </>
         )}
       </div>
+
+      {/* Change Last Move Banner */}
+      {canChangeLastMove && pendingPlacements.length === 0 && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 animate-fadeIn">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onChangeLastMove?.();
+            }}
+            className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-black shadow-2xl border-2 border-amber-300 animate-pulse active:scale-95 transition"
+          >
+            <Edit3 size={15} /> You can change your move! (Tap to edit)
+          </button>
+        </div>
+      )}
 
       {/* Helpful Overlay Instruction */}
       {selectedTile && isMyTurn && pendingPlacements.length === 0 && (

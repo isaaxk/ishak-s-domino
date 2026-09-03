@@ -4,6 +4,7 @@ import {
   stageTilePlacement,
   undoStagedTurn,
   confirmTurnAction,
+  changeLastMoveAction,
   passTurnAction,
   drawTileAction,
 } from '../src/engine/game-engine.js';
@@ -177,5 +178,47 @@ describe('Game Engine State Machine & Physical Freedom', () => {
     expect(pass2.success).toBe(true);
     expect(pass2.isRoundOver).toBe(true);
     expect(session.state.phase).toBe('round_finished');
+  });
+
+  it('allows player to change confirmed move if no one has played after them, and blocks change once someone acts', () => {
+    const players = createTestPlayers();
+    const session = startNewRound('ROOM-1', DEFAULT_SETTINGS, players, 1);
+    const p1 = session.state.currentTurnPlayerId!;
+    const tile1 = session.privateHands[p1][0].id;
+
+    // 1. P1 places and confirms move
+    stageTilePlacement(session, p1, tile1);
+    const confirm = confirmTurnAction(session, p1);
+    expect(confirm.success).toBe(true);
+    expect(session.state.board.length).toBe(1);
+    expect(session.state.canChangeLastMove).toBe(true);
+    expect(session.state.lastMovePlayerId).toBe(p1);
+
+    // 2. P1 changes their move before P2 acts
+    const change = changeLastMoveAction(session, p1);
+    expect(change.success).toBe(true);
+    // Board is reverted and tile is staged in pendingPlacements
+    expect(session.state.board.length).toBe(0);
+    expect(session.state.pendingPlacements.length).toBe(1);
+    expect(session.state.pendingPlacements[0].id).toBe(tile1);
+    // Turn is back with P1
+    expect(session.state.currentTurnPlayerId).toBe(p1);
+
+    // 3. P1 confirms again
+    const confirm2 = confirmTurnAction(session, p1);
+    expect(confirm2.success).toBe(true);
+    expect(session.state.board.length).toBe(1);
+
+    // 4. Next player (P2) acts (draws from boneyard)
+    const p2 = session.state.currentTurnPlayerId!;
+    expect(p2).not.toBe(p1);
+    const draw = drawTileAction(session, p2);
+    expect(draw.success).toBe(true);
+    expect(session.state.canChangeLastMove).toBe(false);
+
+    // 5. P1 now attempts to change move -> blocked!
+    const blockedChange = changeLastMoveAction(session, p1);
+    expect(blockedChange.success).toBe(false);
+    expect(blockedChange.error).toContain('another player has already played after you');
   });
 });

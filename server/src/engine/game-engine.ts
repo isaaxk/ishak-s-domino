@@ -16,10 +16,19 @@ import {
   calculateOpenEnds,
 } from './scoring.js';
 
+export interface LastConfirmedMove {
+  playerId: string;
+  tiles: PlacedTile[];
+  pointsScored: number;
+  previousRoundOver: boolean;
+  roundBonus: number;
+}
+
 export interface EngineSession {
   state: GameState;
   privateHands: Record<string, DominoTile[]>;
   boneyard: DominoTile[];
+  lastConfirmedMove?: LastConfirmedMove | null;
 }
 
 /**
@@ -273,8 +282,9 @@ export function confirmTurnAction(
   }
 
   // 1. Commit pending placements to board
-  const placedTileIds = new Set(state.pendingPlacements.map((p) => p.id));
-  state.board.push(...state.pendingPlacements);
+  const placedTilesCopy = [...state.pendingPlacements];
+  const placedTileIds = new Set(placedTilesCopy.map((p) => p.id));
+  state.board.push(...placedTilesCopy);
   state.pendingPlacements = [];
 
   // 2. Remove placed tiles from player's hand
@@ -363,6 +373,17 @@ export function confirmTurnAction(
   // 7. Advance turn to next player
   advanceTurn(state);
 
+  // Record last confirmed move so player can change it if no one has played after them
+  session.lastConfirmedMove = {
+    playerId,
+    tiles: placedTilesCopy,
+    pointsScored,
+    previousRoundOver: false,
+    roundBonus: 0,
+  };
+  state.canChangeLastMove = true;
+  state.lastMovePlayerId = playerId;
+
   return { success: true, pointsScored, isRoundOver: false, isGameOver: false };
 }
 
@@ -406,6 +427,11 @@ export function drawTileAction(
     player.tileCount = hand.length;
   }
 
+  // Clear last confirmed move because an action has been taken
+  session.lastConfirmedMove = null;
+  state.canChangeLastMove = false;
+  state.lastMovePlayerId = null;
+
   state.lastMoveSummary = {
     playerId,
     playerNickname: player ? player.nickname : 'Player',
@@ -438,6 +464,11 @@ export function passTurnAction(
 
   state.consecutivePasses += 1;
   const player = state.players.find((p) => p.id === playerId);
+
+  // Clear last confirmed move because an action has been taken
+  session.lastConfirmedMove = null;
+  state.canChangeLastMove = false;
+  state.lastMovePlayerId = null;
 
   state.lastMoveSummary = {
     playerId,
@@ -502,4 +533,82 @@ function checkGameOver(state: GameState): boolean {
     }
   }
   return false;
+}
+
+/**
+ * Allows the player who made the last confirmed move to revert and change it,
+ * provided that no other player has taken an action (drawn, passed, or played) after them.
+ */
+export function changeLastMoveAction(
+  session: EngineSession,
+  playerId: string
+): { success: boolean; error?: string } {
+  const { state, privateHands } = session;
+
+  if (state.phase !== 'playing') {
+    return { success: false, error: 'Cannot change move: round is not in active playing state' };
+  }
+
+  if (!session.lastConfirmedMove || session.lastConfirmedMove.playerId !== playerId) {
+    return {
+      success: false,
+      error: 'Cannot change move: another player has already played after you, or no confirmed move exists.',
+    };
+  }
+
+  const { tiles, pointsScored } = session.lastConfirmedMove;
+  const tileIds = new Set(tiles.map((t) => t.id));
+
+  // 1. Remove tiles from confirmed board
+  state.board = state.board.filter((t) => !tileIds.has(t.id));
+
+  // 2. Add tiles back to player's private hand
+  const playerHand = privateHands[playerId] || [];
+  for (const t of tiles) {
+    playerHand.push({
+      id: t.id,
+      sideA: t.sideA,
+      sideB: t.sideB,
+      totalPips: t.sideA + t.sideB,
+      isDouble: t.isDouble,
+    });
+  }
+  privateHands[playerId] = playerHand;
+
+  // Update player tileCount & revert points
+  const player = state.players.find((p) => p.id === playerId);
+  if (player) {
+    player.tileCount = playerHand.length;
+    if (pointsScored > 0) {
+      player.score = Math.max(0, player.score - pointsScored);
+    }
+  }
+
+  // 3. Put the tiles back into pendingPlacements so they remain on table ready for rotation or repositioning!
+  state.pendingPlacements = [...tiles];
+
+  // 4. Return turn to this player
+  state.currentTurnPlayerId = playerId;
+  state.turnStartTime = Date.now();
+
+  // 5. Clear lastConfirmedMove
+  session.lastConfirmedMove = null;
+  state.canChangeLastMove = false;
+  state.lastMovePlayerId = null;
+
+  // 6. Recalculate open ends
+  const endsInfo = calculateOpenEnds([...state.board, ...state.pendingPlacements]);
+  state.openEnds = endsInfo.openEnds;
+  state.currentOpenEndsSum = endsInfo.sum;
+
+  state.lastMoveSummary = {
+    playerId,
+    playerNickname: player ? player.nickname : 'Player',
+    moveType: 'play',
+    pointsAwarded: 0,
+    description: `${player?.nickname || 'Player'} is modifying their move`,
+    timestamp: Date.now(),
+  };
+
+  return { success: true };
 }
