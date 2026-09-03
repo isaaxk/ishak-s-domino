@@ -95,6 +95,9 @@ export const StatusBar: React.FC<StatusBarProps> = ({
               }`}
             >
               <span className={`w-2 h-2 rounded-full ${p.connected ? 'bg-emerald-400' : 'bg-rose-500'}`} />
+              <span className="text-[10px] font-black text-amber-300 bg-slate-950/80 px-1.5 py-0.2 rounded-md border border-amber-500/30" title={`Table Position ${p.seatIndex + 1}`}>
+                P{p.seatIndex + 1}
+              </span>
               <span>{p.nickname} {isMe && '(You)'}</span>
               <span className="text-slate-400">|</span>
               <span className="font-bold text-amber-300">{p.score} pts</span>

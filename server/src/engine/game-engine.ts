@@ -528,9 +528,11 @@ export function passTurnAction(
 }
 
 function advanceTurn(state: GameState) {
-  const currentIndex = state.players.findIndex((p) => p.id === state.currentTurnPlayerId);
-  const nextIndex = (currentIndex + 1) % state.players.length;
-  state.currentTurnPlayerId = state.players[nextIndex].id;
+  // Advance turn clockwise according to seatIndex ordering around the table
+  const sortedPlayers = [...state.players].sort((a, b) => a.seatIndex - b.seatIndex);
+  const currentIndex = sortedPlayers.findIndex((p) => p.id === state.currentTurnPlayerId);
+  const nextIndex = (currentIndex + 1) % sortedPlayers.length;
+  state.currentTurnPlayerId = sortedPlayers[nextIndex].id;
   state.turnStartTime = Date.now();
 }
 

@@ -153,6 +153,11 @@ export interface ClientToServerEvents {
     callback: (res: { success: boolean; error?: string }) => void
   ) => void;
 
+  'room:reorder_players': (
+    payload: { playerIds: string[] },
+    callback: (res: { success: boolean; error?: string }) => void
+  ) => void;
+
   'player:ready': (
     payload: { isReady: boolean },
     callback: (res: { success: boolean; error?: string }) => void

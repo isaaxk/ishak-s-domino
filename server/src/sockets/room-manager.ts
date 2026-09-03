@@ -267,6 +267,46 @@ export class RoomManager {
     return { success: true };
   }
 
+  reorderPlayers(socketId: string, playerIds: string[]): { success: boolean; error?: string } {
+    const meta = this.socketToPlayer.get(socketId);
+    if (!meta) return { success: false, error: 'Not in a room' };
+
+    const session = this.sessions.get(meta.roomId);
+    if (!session) return { success: false, error: 'Session not found' };
+
+    const player = session.state.players.find((p) => p.id === meta.playerId);
+    if (!player || !player.isHost) {
+      return { success: false, error: 'Only the room creator can decide player positions' };
+    }
+
+    const currentIds = session.state.players.map((p) => p.id);
+    if (playerIds.length !== currentIds.length || !playerIds.every((id) => currentIds.includes(id))) {
+      return { success: false, error: 'Invalid player ordering list' };
+    }
+
+    // Update seatIndex for each player according to the creator's new ordering
+    playerIds.forEach((id, index) => {
+      const p = session.state.players.find((pl) => pl.id === id);
+      if (p) {
+        p.seatIndex = index;
+      }
+    });
+
+    // Re-sort state.players by seatIndex
+    session.state.players.sort((a, b) => a.seatIndex - b.seatIndex);
+
+    const hostPlayer = session.state.players.find((p) => p.isHost);
+    this.db.saveRoom(
+      meta.roomId,
+      hostPlayer?.id || meta.playerId,
+      session.state.settings,
+      session.state.phase === 'playing' ? 'playing' : 'waiting'
+    );
+    this.broadcastRoomState(meta.roomId);
+
+    return { success: true };
+  }
+
   toggleReady(socketId: string, isReady: boolean): { success: boolean; error?: string } {
     const meta = this.socketToPlayer.get(socketId);
     if (!meta) return { success: false, error: 'Not in a room' };

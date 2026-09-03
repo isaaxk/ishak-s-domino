@@ -67,6 +67,16 @@ io.on('connection', (socket) => {
     }
   });
 
+  // 3b. Reorder Player Positions Around Table (Host only)
+  socket.on('room:reorder_players', ({ playerIds }, callback) => {
+    try {
+      const result = roomManager.reorderPlayers(socket.id, playerIds);
+      callback(result);
+    } catch (err: any) {
+      callback({ success: false, error: err.message });
+    }
+  });
+
   // 4. Ready Toggle
   socket.on('player:ready', ({ isReady }, callback) => {
     try {

@@ -204,6 +204,14 @@ export function App() {
     });
   };
 
+  // Creator reorders player seating positions around the table
+  const handleReorderPlayers = (playerIds: string[]) => {
+    socket.emit('room:reorder_players', { playerIds }, (res) => {
+      if (!res.success) showToast(res.error || 'Failed to reorder player seats', 'error');
+      else playSound('click');
+    });
+  };
+
   // Host start game with creator-chosen starting player
   const handleStartGame = (startingPlayerId?: string) => {
     socket.emit('game:start', { startingPlayerId }, (res) => {
@@ -417,6 +425,7 @@ export function App() {
             onToggleReady={handleToggleReady}
             onStartGame={handleStartGame}
             onOpenSettings={() => setIsSettingsOpen(true)}
+            onReorderPlayers={handleReorderPlayers}
           />
         </>
       ) : (

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { GameState, GameSettings } from '../../../shared/types.js';
-import { Crown, CheckCircle2, Circle, Users, Settings, Play, Copy, Check, Share2 } from 'lucide-react';
+import { Crown, CheckCircle2, Circle, Users, Settings, Play, Copy, Check, Share2, ChevronUp, ChevronDown, Compass } from 'lucide-react';
 
 interface LobbyViewProps {
   state: GameState;
@@ -9,6 +9,7 @@ interface LobbyViewProps {
   onToggleReady: (ready: boolean) => void;
   onStartGame: (startingPlayerId?: string) => void;
   onOpenSettings: () => void;
+  onReorderPlayers?: (playerIds: string[]) => void;
 }
 
 export const LobbyView: React.FC<LobbyViewProps> = ({
@@ -18,11 +19,31 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   onToggleReady,
   onStartGame,
   onOpenSettings,
+  onReorderPlayers,
 }) => {
   const [copied, setCopied] = useState(false);
   const [selectedStarterId, setSelectedStarterId] = useState<string>(myPlayerId);
   const me = state.players.find((p) => p.id === myPlayerId);
   const minPlayersMet = state.players.length >= 2;
+
+  const getSeatPositionName = (seatIndex: number, total: number) => {
+    if (total <= 2) return seatIndex === 0 ? 'South (Bottom)' : 'North (Top)';
+    if (total === 3) return seatIndex === 0 ? 'South (Bottom)' : seatIndex === 1 ? 'West (Left)' : 'East (Right)';
+    const names = ['South (Bottom)', 'West (Left)', 'North (Top)', 'East (Right)', 'Seat 5', 'Seat 6', 'Seat 7', 'Seat 8'];
+    return names[seatIndex] || `Seat ${seatIndex + 1}`;
+  };
+
+  const handleMovePlayer = (currentIndex: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= state.players.length) return;
+
+    const currentIds = state.players.map((p) => p.id);
+    const temp = currentIds[currentIndex];
+    currentIds[currentIndex] = currentIds[targetIndex];
+    currentIds[targetIndex] = temp;
+
+    onReorderPlayers?.(currentIds);
+  };
 
   const copyRoomCode = () => {
     navigator.clipboard.writeText(state.roomId);
@@ -95,7 +116,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
           </div>
 
           <div className="flex flex-col gap-2">
-            {state.players.map((p) => (
+            {state.players.map((p, index) => (
               <div
                 key={p.id}
                 className="flex items-center justify-between p-3 rounded-xl bg-slate-800/80 border border-slate-700"
@@ -114,23 +135,120 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                         <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-700 text-slate-300">You</span>
                       )}
                     </div>
+                    {/* Physical Table Seat Position Badge */}
+                    <div className="flex items-center gap-1 text-[11px] text-amber-300/90 font-medium">
+                      <Compass size={11} className="text-amber-400" />
+                      <span>Pos {index + 1}: {getSeatPositionName(index, state.players.length)}</span>
+                    </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1 text-xs font-semibold">
-                  {p.isReady ? (
-                    <span className="flex items-center gap-1 text-emerald-400">
-                      <CheckCircle2 size={16} /> Ready
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-1 text-slate-500">
-                      <Circle size={16} /> Waiting
-                    </span>
+                <div className="flex items-center gap-2">
+                  {/* Creator Seating Move Up / Down Buttons */}
+                  {isHost && state.players.length > 1 && (
+                    <div className="flex items-center bg-slate-900 rounded-lg p-0.5 border border-slate-700">
+                      <button
+                        onClick={() => handleMovePlayer(index, 'up')}
+                        disabled={index === 0}
+                        className={`p-1 rounded transition ${
+                          index === 0
+                            ? 'text-slate-600 cursor-not-allowed'
+                            : 'text-slate-300 hover:text-white hover:bg-slate-800 active:scale-95'
+                        }`}
+                        title="Move player seat earlier (counter-clockwise)"
+                      >
+                        <ChevronUp size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleMovePlayer(index, 'down')}
+                        disabled={index === state.players.length - 1}
+                        className={`p-1 rounded transition ${
+                          index === state.players.length - 1
+                            ? 'text-slate-600 cursor-not-allowed'
+                            : 'text-slate-300 hover:text-white hover:bg-slate-800 active:scale-95'
+                        }`}
+                        title="Move player seat later (clockwise)"
+                      >
+                        <ChevronDown size={16} />
+                      </button>
+                    </div>
                   )}
+
+                  <div className="flex items-center gap-1 text-xs font-semibold">
+                    {p.isReady ? (
+                      <span className="flex items-center gap-1 text-emerald-400">
+                        <CheckCircle2 size={16} /> Ready
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-slate-500">
+                        <Circle size={16} /> Waiting
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
           </div>
+
+          {/* Visual Table Seating Arrangement (Physical Positions Around Felt) */}
+          {state.players.length >= 2 && (
+            <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800/80 flex flex-col gap-2">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-300">
+                <span className="flex items-center gap-1.5 text-amber-400">
+                  <Compass size={14} /> Physical Seating Around Table
+                </span>
+                {isHost && <span className="text-[10px] text-amber-300/80 font-normal">Use ▲ ▼ to change seats</span>}
+              </div>
+
+              <div className="relative w-full h-28 bg-[#04140b] rounded-xl border border-emerald-950/80 p-2 flex items-center justify-center shadow-inner overflow-hidden">
+                {/* Watermark */}
+                <div className="text-[10px] font-serif font-black tracking-widest text-amber-400/20 uppercase select-none pointer-events-none">
+                  DOMINO TABLE
+                </div>
+
+                {/* Seat 0 (South / Bottom) */}
+                {state.players[0] && (
+                  <div className="absolute bottom-1 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-slate-900/90 border border-amber-400/60 text-[10px] font-bold text-amber-200 shadow flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    <span>South: {state.players[0].nickname}</span>
+                  </div>
+                )}
+
+                {/* Seat 1 (North in 2p, West in 3p/4p) */}
+                {state.players[1] && (
+                  <div
+                    className={`absolute px-2.5 py-0.5 rounded-full bg-slate-900/90 border border-slate-700 text-[10px] font-bold text-slate-200 shadow flex items-center gap-1 ${
+                      state.players.length === 2
+                        ? 'top-1 left-1/2 -translate-x-1/2'
+                        : 'left-2 top-1/2 -translate-y-1/2'
+                    }`}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    <span>{state.players.length === 2 ? 'North' : 'West'}: {state.players[1].nickname}</span>
+                  </div>
+                )}
+
+                {/* Seat 2 (North in 3p/4p) */}
+                {state.players[2] && (
+                  <div className="absolute top-1 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-slate-900/90 border border-slate-700 text-[10px] font-bold text-slate-200 shadow flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    <span>North: {state.players[2].nickname}</span>
+                  </div>
+                )}
+
+                {/* Seat 3 (East in 4p) */}
+                {state.players[3] && (
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 px-2.5 py-0.5 rounded-full bg-slate-900/90 border border-slate-700 text-[10px] font-bold text-slate-200 shadow flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    <span>East: {state.players[3].nickname}</span>
+                  </div>
+                )}
+              </div>
+              <div className="text-[10px] text-slate-400 text-center">
+                Turn order moves clockwise around the table: South → West → North → East
+              </div>
+            </div>
+          )}
 
           {!minPlayersMet && (
             <div className="text-xs text-amber-400/90 bg-amber-950/40 border border-amber-800/50 p-2.5 rounded-xl text-center">

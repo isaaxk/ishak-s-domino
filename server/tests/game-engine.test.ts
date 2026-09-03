@@ -233,4 +233,23 @@ describe('Game Engine State Machine & Physical Freedom', () => {
     expect(blockedChange.success).toBe(false);
     expect(blockedChange.error).toContain('another player has already played after you');
   });
+
+  it('follows player seating order established by the room creator', () => {
+    const players = createTestPlayers();
+    // Creator swaps seating: Bob (player-2) is Seat 0, Alice (player-1) is Seat 1
+    players[0].seatIndex = 1;
+    players[1].seatIndex = 0;
+    players.sort((a, b) => a.seatIndex - b.seatIndex);
+
+    const session = startNewRound('ROOM-1', DEFAULT_SETTINGS, players, 1, undefined, 'player-2');
+    expect(session.state.currentTurnPlayerId).toBe('player-2');
+
+    // Bob plays tile and confirms
+    const bobTile = session.privateHands['player-2'][0].id;
+    stageTilePlacement(session, 'player-2', bobTile);
+    confirmTurnAction(session, 'player-2');
+
+    // Turn advances in seat order to Alice (Seat 1)
+    expect(session.state.currentTurnPlayerId).toBe('player-1');
+  });
 });
