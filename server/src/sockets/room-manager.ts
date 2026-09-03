@@ -19,6 +19,7 @@ import {
   changeLastMoveAction,
   drawTileAction,
   passTurnAction,
+  selectStartingPlayerAction,
   EngineSession,
 } from '../engine/game-engine.js';
 import { sanitizeStateForPlayer } from './sanitize.js';
@@ -386,6 +387,22 @@ export class RoomManager {
     this.broadcastRoomState(meta.roomId);
 
     return { success: true };
+  }
+
+  selectStarter(socketId: string, playerId: string): { success: boolean; error?: string } {
+    const meta = this.socketToPlayer.get(socketId);
+    if (!meta) return { success: false, error: 'Not in a room' };
+
+    const session = this.sessions.get(meta.roomId);
+    if (!session) return { success: false, error: 'Session not found' };
+
+    const result = selectStartingPlayerAction(session, meta.playerId, playerId);
+    if (result.success) {
+      this.db.saveGameState(meta.roomId, session.state, session.privateHands, session.boneyard);
+      this.broadcastRoomState(meta.roomId);
+    }
+
+    return result;
   }
 
   placeTile(

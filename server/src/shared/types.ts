@@ -88,6 +88,7 @@ export interface PlayerState {
 export type GamePhase =
   | 'waiting_players'
   | 'waiting_ready'
+  | 'selecting_starter'
   | 'playing'
   | 'round_finished'
   | 'game_finished';
@@ -95,6 +96,8 @@ export type GamePhase =
 export type UserClearState =
   | 'Waiting for players'
   | 'Waiting for ready'
+  | 'Choose starting player'
+  | 'Waiting for host to choose starter'
   | 'Your turn'
   | "Opponent's turn"
   | 'Drawing'
@@ -171,6 +174,11 @@ export interface ClientToServerEvents {
   'game:next_round': (
     payload: { startingPlayerId?: string } | ((res: { success: boolean; error?: string }) => void),
     callback?: (res: { success: boolean; error?: string }) => void
+  ) => void;
+
+  'game:select_starter': (
+    payload: { playerId: string },
+    callback: (res: { success: boolean; error?: string }) => void
   ) => void;
 
   'game:place_tile': (

@@ -16,6 +16,7 @@ import { HostSettingsModal } from './components/HostSettingsModal.js';
 import { RoundOverModal } from './components/RoundOverModal.js';
 import { GameOverModal } from './components/GameOverModal.js';
 import { RulesHelpModal } from './components/RulesHelpModal.js';
+import { SelectStarterModal } from './components/SelectStarterModal.js';
 
 // Web Audio synthesizer for crisp, low-latency tactile sound effects
 function playSound(type: 'click' | 'place' | 'draw' | 'score' | 'turn') {
@@ -212,19 +213,30 @@ export function App() {
     });
   };
 
-  // Host start game with creator-chosen starting player
-  const handleStartGame = (startingPlayerId?: string) => {
-    socket.emit('game:start', { startingPlayerId }, (res) => {
+  // Host starts game (manager will decide who starts after entering table)
+  const handleStartGame = () => {
+    socket.emit('game:start', {}, (res) => {
       if (!res.success) showToast(res.error || 'Failed to start game', 'error');
       else playSound('turn');
     });
   };
 
-  // Host next round with creator-chosen starting player
-  const handleNextRound = (startingPlayerId?: string) => {
-    socket.emit('game:next_round', { startingPlayerId }, (res) => {
+  // Host starts next round (manager will decide who starts after round begins)
+  const handleNextRound = () => {
+    socket.emit('game:next_round', {}, (res) => {
       if (!res.success) showToast(res.error || 'Failed to start next round', 'error');
       else playSound('turn');
+    });
+  };
+
+  // Manager chooses who starts the round on the table
+  const handleSelectStarter = (playerId: string) => {
+    socket.emit('game:select_starter', { playerId }, (res) => {
+      if (!res.success) {
+        showToast(res.error || 'Failed to select starting player', 'error');
+      } else {
+        playSound('turn');
+      }
     });
   };
 
@@ -352,6 +364,8 @@ export function App() {
     currentClearState = 'Waiting for players';
   } else if (gameState.phase === 'waiting_ready') {
     currentClearState = 'Waiting for ready';
+  } else if (gameState.phase === 'selecting_starter') {
+    currentClearState = isHost ? 'Choose starting player' : 'Waiting for host to choose starter';
   } else if (gameState.phase === 'round_finished') {
     currentClearState = 'Round finished';
   } else if (gameState.phase === 'game_finished') {
@@ -496,6 +510,16 @@ export function App() {
           isOpen={isSettingsOpen}
           onClose={() => setIsSettingsOpen(false)}
           onSave={handleSaveSettings}
+        />
+      )}
+
+      {/* Manager Decision: Who Starts Round Modal */}
+      {gameState && (
+        <SelectStarterModal
+          state={gameState}
+          myPlayerId={myPlayerId}
+          isHost={isHost}
+          onSelectStarter={handleSelectStarter}
         />
       )}
 

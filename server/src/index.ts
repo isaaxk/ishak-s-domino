@@ -111,6 +111,16 @@ io.on('connection', (socket) => {
     }
   });
 
+  // 6b. Select Starter (Manager chooses who starts the round after starting game/round)
+  socket.on('game:select_starter', ({ playerId }, callback) => {
+    try {
+      const result = roomManager.selectStarter(socket.id, playerId);
+      callback(result);
+    } catch (err: any) {
+      callback({ success: false, error: err.message });
+    }
+  });
+
   // 7. Place Tile (Turn staged placement)
   socket.on('game:place_tile', ({ tileId, x, y, rotation, placementSide, attachedToId }, callback) => {
     try {

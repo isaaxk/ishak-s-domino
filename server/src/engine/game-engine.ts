@@ -139,11 +139,13 @@ export function startNewRound(
     isReady: true,
   }));
 
+  const needsStarterSelection = settings.startingTileRule === 'host-selects' && !designatedStartingPlayerId;
+
   const state: GameState = {
     roomId,
-    phase: 'playing',
+    phase: needsStarterSelection ? 'selecting_starter' : 'playing',
     roundNumber: currentRoundNumber,
-    currentTurnPlayerId: startingPlayerId,
+    currentTurnPlayerId: needsStarterSelection ? null : startingPlayerId,
     turnStartTime: Date.now(),
     board: [],
     boneyardCount: deal.boneyard.length,
@@ -627,6 +629,45 @@ export function changeLastMoveAction(
     moveType: 'play',
     pointsAwarded: 0,
     description: `${player?.nickname || 'Player'} is modifying their move`,
+    timestamp: Date.now(),
+  };
+
+  return { success: true };
+}
+
+/**
+ * Allows the room manager/creator to decide who starts the round after the game/round starts.
+ */
+export function selectStartingPlayerAction(
+  session: EngineSession,
+  callerPlayerId: string,
+  selectedPlayerId: string
+): { success: boolean; error?: string } {
+  const { state } = session;
+  const caller = state.players.find((p) => p.id === callerPlayerId);
+  if (!caller || !caller.isHost) {
+    return { success: false, error: 'Only the room manager can choose who starts the round' };
+  }
+
+  if (state.phase !== 'selecting_starter') {
+    return { success: false, error: 'Starting player has already been selected for this round' };
+  }
+
+  const chosenPlayer = state.players.find((p) => p.id === selectedPlayerId);
+  if (!chosenPlayer) {
+    return { success: false, error: 'Selected player is not in this room' };
+  }
+
+  state.currentTurnPlayerId = selectedPlayerId;
+  state.phase = 'playing';
+  state.turnStartTime = Date.now();
+
+  state.lastMoveSummary = {
+    playerId: selectedPlayerId,
+    playerNickname: chosenPlayer.nickname,
+    moveType: 'play',
+    pointsAwarded: 0,
+    description: `${caller.nickname} chose ${chosenPlayer.nickname} to start Round ${state.roundNumber}`,
     timestamp: Date.now(),
   };
 

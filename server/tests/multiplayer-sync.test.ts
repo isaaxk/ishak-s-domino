@@ -70,12 +70,22 @@ describe('End-to-End Multiplayer Synchronization', () => {
     const startRes = roomManager.startGame('socket-alice');
     expect(startRes.success).toBe(true);
 
-    // 4. Inspect persisted state
-    const savedState = db.getGameState(createRes.roomId);
+    // 3b. After starting, game is in selecting_starter phase where manager decides who starts
+    let savedState = db.getGameState(createRes.roomId);
     expect(savedState).not.toBeNull();
+    expect(savedState?.state.phase).toBe('selecting_starter');
+    expect(savedState?.state.currentTurnPlayerId).toBeNull();
+
+    // Manager selects Alice to start and put first domino
+    const selectRes = roomManager.selectStarter('socket-alice', createRes.playerId);
+    expect(selectRes.success).toBe(true);
+
+    // 4. Inspect persisted state after manager decision
+    savedState = db.getGameState(createRes.roomId);
     expect(savedState?.state.phase).toBe('playing');
     expect(savedState?.state.board.length).toBe(0);
     expect(savedState?.state.players.length).toBe(2);
+    expect(savedState?.state.currentTurnPlayerId).toBe(createRes.playerId);
 
     // 5. Active player plays a turn
     const activePid = savedState!.state.currentTurnPlayerId!;

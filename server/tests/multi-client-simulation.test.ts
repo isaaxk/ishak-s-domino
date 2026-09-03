@@ -59,6 +59,10 @@ describe('Multi-Client WebSocket Simulated Integration', () => {
         cb(roomManager.startGame(socket.id));
       });
 
+      socket.on('game:select_starter', ({ playerId }, cb) => {
+        cb(roomManager.selectStarter(socket.id, playerId));
+      });
+
       socket.on('game:place_tile', (p, cb) => {
         cb(roomManager.placeTile(socket.id, p.tileId, p.x, p.y, p.rotation, p.placementSide));
       });
@@ -142,6 +146,17 @@ describe('Multi-Client WebSocket Simulated Integration', () => {
     expect(startRes.success).toBe(true);
 
     await new Promise((r) => setTimeout(r, 100));
+
+    // Game is in selecting_starter phase on table, manager chooses who starts Round 1
+    expect(phone1State?.phase).toBe('selecting_starter');
+
+    const selectRes: any = await new Promise((res) => {
+      phone1.emit('game:select_starter', { playerId: hostCreateRes.playerId }, res);
+    });
+    expect(selectRes.success).toBe(true);
+
+    await new Promise((r) => setTimeout(r, 100));
+    expect(phone1State?.phase).toBe('playing');
 
     // 4. Verify Privacy Isolation:
     // Phone 1 has 7 tiles

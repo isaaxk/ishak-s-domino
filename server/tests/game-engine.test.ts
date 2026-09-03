@@ -7,6 +7,7 @@ import {
   changeLastMoveAction,
   passTurnAction,
   drawTileAction,
+  selectStartingPlayerAction,
 } from '../src/engine/game-engine.js';
 import { DEFAULT_SETTINGS, PlayerState } from '../../shared/types.js';
 
@@ -34,33 +35,52 @@ describe('Game Engine State Machine & Physical Freedom', () => {
     },
   ];
 
-  it('starts a new round and deals tiles', () => {
+  it('starts a new round in selecting_starter phase, deals tiles, and allows manager to choose who starts', () => {
     const players = createTestPlayers();
     const session = startNewRound('ROOM-1', DEFAULT_SETTINGS, players, 1);
 
-    expect(session.state.phase).toBe('playing');
+    expect(session.state.phase).toBe('selecting_starter');
+    expect(session.state.currentTurnPlayerId).toBeNull();
     expect(session.state.roundNumber).toBe(1);
     expect(session.state.players[0].tileCount).toBe(7);
     expect(session.state.players[1].tileCount).toBe(7);
     expect(session.boneyard.length).toBe(28 - 14);
-    expect(session.state.currentTurnPlayerId).toBeDefined();
+
+    // Non-manager cannot choose starter
+    const invalidSelect = selectStartingPlayerAction(session, 'player-2', 'player-2');
+    expect(invalidSelect.success).toBe(false);
+    expect(invalidSelect.error).toContain('Only the room manager can choose');
+
+    // Manager selects player-1 to start
+    const select = selectStartingPlayerAction(session, 'player-1', 'player-1');
+    expect(select.success).toBe(true);
+    expect(session.state.phase).toBe('playing');
+    expect(session.state.currentTurnPlayerId).toBe('player-1');
   });
 
-  it('lets the creator choose the player who will start and put the first domino', () => {
+  it('lets the creator choose the player who will start and put the first domino after the game starts', () => {
     const players = createTestPlayers();
 
-    // Creator designates player-2 (Bob) to start round 1
-    const session1 = startNewRound('ROOM-1', DEFAULT_SETTINGS, players, 1, undefined, 'player-2');
+    // Round 1 starts: in selecting_starter phase, manager selects Bob (player-2)
+    const session1 = startNewRound('ROOM-1', DEFAULT_SETTINGS, players, 1);
+    expect(session1.state.phase).toBe('selecting_starter');
+    const selectBob = selectStartingPlayerAction(session1, 'player-1', 'player-2');
+    expect(selectBob.success).toBe(true);
+    expect(session1.state.phase).toBe('playing');
     expect(session1.state.currentTurnPlayerId).toBe('player-2');
 
-    // Creator designates player-1 (Alice / Host) to start round 1
-    const session2 = startNewRound('ROOM-1', DEFAULT_SETTINGS, players, 1, undefined, 'player-1');
+    // Round 2 starts: in selecting_starter phase, manager selects Alice (player-1)
+    const session2 = startNewRound('ROOM-1', DEFAULT_SETTINGS, players, 2);
+    expect(session2.state.phase).toBe('selecting_starter');
+    const selectAlice = selectStartingPlayerAction(session2, 'player-1', 'player-1');
+    expect(selectAlice.success).toBe(true);
+    expect(session2.state.phase).toBe('playing');
     expect(session2.state.currentTurnPlayerId).toBe('player-1');
   });
 
   it('allows free physical placement (e.g. [6|2] [5|5] [1|4] without rejection)', () => {
     const players = createTestPlayers();
-    const session = startNewRound('ROOM-1', { ...DEFAULT_SETTINGS, allowFreePlacement: true }, players, 1);
+    const session = startNewRound('ROOM-1', { ...DEFAULT_SETTINGS, allowFreePlacement: true }, players, 1, undefined, 'player-1');
     const activePlayerId = session.state.currentTurnPlayerId!;
 
     // Set custom hand for testing free placement
@@ -113,7 +133,9 @@ describe('Game Engine State Machine & Physical Freedom', () => {
       'ROOM-1',
       { ...DEFAULT_SETTINGS, allowMultipleTilesPerTurn: true },
       players,
-      1
+      1,
+      undefined,
+      'player-1'
     );
     const activePlayerId = session.state.currentTurnPlayerId!;
 
@@ -140,7 +162,7 @@ describe('Game Engine State Machine & Physical Freedom', () => {
 
   it('supports undoing staged unconfirmed turn', () => {
     const players = createTestPlayers();
-    const session = startNewRound('ROOM-1', DEFAULT_SETTINGS, players, 1);
+    const session = startNewRound('ROOM-1', DEFAULT_SETTINGS, players, 1, undefined, 'player-1');
     const activePlayerId = session.state.currentTurnPlayerId!;
     const tileToPlay = session.privateHands[activePlayerId][0].id;
 
@@ -158,7 +180,7 @@ describe('Game Engine State Machine & Physical Freedom', () => {
 
   it('ends round when a player empties their hand ("Domino!") and awards points', () => {
     const players = createTestPlayers();
-    const session = startNewRound('ROOM-1', { ...DEFAULT_SETTINGS, gameType: 'classic' }, players, 1);
+    const session = startNewRound('ROOM-1', { ...DEFAULT_SETTINGS, gameType: 'classic' }, players, 1, undefined, 'player-1');
     const activePlayerId = session.state.currentTurnPlayerId!;
 
     // Set player to have only 1 tile left
@@ -178,7 +200,7 @@ describe('Game Engine State Machine & Physical Freedom', () => {
 
   it('ends round as blocked when all players pass consecutively', () => {
     const players = createTestPlayers();
-    const session = startNewRound('ROOM-1', DEFAULT_SETTINGS, players, 1);
+    const session = startNewRound('ROOM-1', DEFAULT_SETTINGS, players, 1, undefined, 'player-1');
 
     const p1 = session.state.currentTurnPlayerId!;
     const pass1 = passTurnAction(session, p1);
@@ -194,7 +216,7 @@ describe('Game Engine State Machine & Physical Freedom', () => {
 
   it('allows player to change confirmed move if no one has played after them, and blocks change once someone acts', () => {
     const players = createTestPlayers();
-    const session = startNewRound('ROOM-1', DEFAULT_SETTINGS, players, 1);
+    const session = startNewRound('ROOM-1', DEFAULT_SETTINGS, players, 1, undefined, 'player-1');
     const p1 = session.state.currentTurnPlayerId!;
     const tile1 = session.privateHands[p1][0].id;
 

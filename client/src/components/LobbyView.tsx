@@ -22,7 +22,6 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   onReorderPlayers,
 }) => {
   const [copied, setCopied] = useState(false);
-  const [selectedStarterId, setSelectedStarterId] = useState<string>(myPlayerId);
   const me = state.players.find((p) => p.id === myPlayerId);
   const minPlayersMet = state.players.length >= 2;
 
@@ -268,52 +267,6 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
           </div>
         </div>
 
-        {/* Creator / Host Starting Player Selector */}
-        {isHost && minPlayersMet && (
-          <div className="bg-slate-900 border-2 border-amber-500/60 rounded-2xl p-4 shadow-xl flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
-                <Crown size={15} /> Who Starts & Puts 1st Domino?
-              </span>
-              <span className="text-[10px] text-amber-300 font-bold bg-amber-950/60 px-2 py-0.5 rounded-full border border-amber-800/60">
-                Creator Decides
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              {state.players.map((p) => {
-                const isSelected = selectedStarterId === p.id;
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => setSelectedStarterId(p.id)}
-                    className={`flex items-center justify-between p-2.5 rounded-xl border transition-all text-left ${
-                      isSelected
-                        ? 'bg-amber-500/25 border-amber-400 text-white shadow-lg ring-1 ring-amber-400'
-                        : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-700'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 truncate">
-                      <div className="w-6 h-6 rounded-full bg-slate-700 flex items-center justify-center font-bold text-xs text-amber-400">
-                        {p.nickname.slice(0, 2).toUpperCase()}
-                      </div>
-                      <span className="text-xs font-bold truncate">
-                        {p.nickname} {p.id === myPlayerId && '(You)'}
-                      </span>
-                    </div>
-                    {isSelected && (
-                      <Check size={16} className="text-amber-400 flex-shrink-0" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-            <p className="text-[11px] text-slate-400 italic">
-              Tap any player above to give them the first turn to start the round.
-            </p>
-          </div>
-        )}
       </div>
 
       {/* Action Footer */}
@@ -335,7 +288,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
         {/* Host Start Game Button */}
         {isHost && (
           <button
-            onClick={() => onStartGame(selectedStarterId)}
+            onClick={() => onStartGame()}
             disabled={!minPlayersMet}
             className={`w-full py-4 rounded-xl font-black text-sm shadow-lg active:scale-98 transition-all flex items-center justify-center gap-2 ${
               minPlayersMet
