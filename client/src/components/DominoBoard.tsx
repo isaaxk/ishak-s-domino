@@ -177,7 +177,7 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
     setTouchDistance(null);
   };
 
-  // Free placement on clicking felt table
+  // Smart snap placement on clicking felt table
   const handleTableClick = (e: React.MouseEvent) => {
     if (!selectedTile || !isMyTurn || isDragging) return;
     const rect = containerRef.current?.getBoundingClientRect();
@@ -186,12 +186,40 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
     const clickX = (e.clientX - rect.left - rect.width / 2 - pan.x) / zoom;
     const clickY = (e.clientY - rect.top - rect.height / 2 - pan.y) / zoom;
 
+    // If first tile on empty table: place at (0, 0)
+    if (allTiles.length === 0) {
+      onPlaceTile({
+        tileId: selectedTile.id,
+        x: 0,
+        y: 0,
+        rotation: selectedRotation,
+        placementSide: 'free',
+      });
+      return;
+    }
+
+    // Auto-snap to the closest of the 4 road ends (Left, Right, Top, Bottom)
+    const spineY = board[0]?.y ?? 0;
+    const spineX = board[0]?.x ?? 0;
+
+    const leftDist = leftMost ? Math.hypot(clickX - (leftMost.x - 60), clickY - spineY) : Infinity;
+    const rightDist = rightMost ? Math.hypot(clickX - (rightMost.x + 60), clickY - spineY) : Infinity;
+    const topDist = topMost ? Math.hypot(clickX - spineX, clickY - (topMost.y - 60)) : Infinity;
+    const bottomDist = bottomMost ? Math.hypot(clickX - spineX, clickY - (bottomMost.y + 60)) : Infinity;
+
+    const minDist = Math.min(leftDist, rightDist, topDist, bottomDist);
+    let chosenSide: PlacementSide = 'right';
+    if (minDist === leftDist) chosenSide = 'left';
+    else if (minDist === rightDist) chosenSide = 'right';
+    else if (minDist === topDist) chosenSide = 'top';
+    else if (minDist === bottomDist) chosenSide = 'bottom';
+
     onPlaceTile({
       tileId: selectedTile.id,
-      x: Math.round(clickX),
-      y: Math.round(clickY),
-      rotation: selectedRotation,
-      placementSide: 'free',
+      x: 0,
+      y: 0,
+      rotation: chosenSide === 'top' || chosenSide === 'bottom' ? 90 : selectedRotation,
+      placementSide: chosenSide,
     });
   };
 
@@ -214,12 +242,41 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
     const clickX = (e.clientX - rect.left - rect.width / 2 - pan.x) / zoom;
     const clickY = (e.clientY - rect.top - rect.height / 2 - pan.y) / zoom;
 
+    // If first tile on empty table: place at (0, 0)
+    if (allTiles.length === 0) {
+      onPlaceTile({
+        tileId,
+        x: 0,
+        y: 0,
+        rotation: selectedRotation,
+        placementSide: 'free',
+      });
+      setActiveDropZone(null);
+      return;
+    }
+
+    // Auto-snap drop to the closest of the 4 road ends (Left, Right, Top, Bottom)
+    const spineY = board[0]?.y ?? 0;
+    const spineX = board[0]?.x ?? 0;
+
+    const leftDist = leftMost ? Math.hypot(clickX - (leftMost.x - 60), clickY - spineY) : Infinity;
+    const rightDist = rightMost ? Math.hypot(clickX - (rightMost.x + 60), clickY - spineY) : Infinity;
+    const topDist = topMost ? Math.hypot(clickX - spineX, clickY - (topMost.y - 60)) : Infinity;
+    const bottomDist = bottomMost ? Math.hypot(clickX - spineX, clickY - (bottomMost.y + 60)) : Infinity;
+
+    const minDist = Math.min(leftDist, rightDist, topDist, bottomDist);
+    let chosenSide: PlacementSide = 'right';
+    if (minDist === leftDist) chosenSide = 'left';
+    else if (minDist === rightDist) chosenSide = 'right';
+    else if (minDist === topDist) chosenSide = 'top';
+    else if (minDist === bottomDist) chosenSide = 'bottom';
+
     onPlaceTile({
       tileId,
-      x: Math.round(clickX),
-      y: Math.round(clickY),
-      rotation: selectedRotation,
-      placementSide: 'free',
+      x: 0,
+      y: 0,
+      rotation: chosenSide === 'top' || chosenSide === 'bottom' ? 90 : selectedRotation,
+      placementSide: chosenSide,
     });
     setActiveDropZone(null);
   };
@@ -364,7 +421,11 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
               {isMyTurn && isCurrentActive && (
                 <div
                   onClick={(e) => e.stopPropagation()}
-                  className="absolute -top-16 left-1/2 -translate-x-1/2 bg-slate-900/95 border-2 border-amber-400 rounded-2xl shadow-2xl p-1.5 flex items-center gap-1.5 backdrop-blur-md animate-bounce-short z-50 whitespace-nowrap"
+                  className={`absolute left-1/2 -translate-x-1/2 bg-slate-900/95 border-2 border-amber-400 rounded-2xl shadow-2xl p-1.5 flex items-center gap-1.5 backdrop-blur-md animate-bounce-short z-50 whitespace-nowrap ${
+                    tile.placementSide === 'bottom' || tile.y > 20
+                      ? 'top-[100%] mt-3.5'
+                      : 'bottom-[100%] mb-3.5'
+                  }`}
                 >
                   {/* Rotate 90° Cycle Button */}
                   <button

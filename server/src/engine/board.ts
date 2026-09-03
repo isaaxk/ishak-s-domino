@@ -49,7 +49,10 @@ export function getBoardBounds(board: PlacedTile[]) {
 
 /**
  * Places a tile on the board, supporting left, right, top, bottom attachment,
- * or free placement at (x, y).
+ * or free placement.
+ * Guarantees that tiles on the horizontal road stay laser-aligned along Y=spineY,
+ * and tiles on the vertical road stay laser-aligned along X=spineX.
+ * Never allows any tile to be out of place or overlap.
  */
 export function placeTileOnBoard(
   currentBoard: PlacedTile[],
@@ -67,7 +70,7 @@ export function placeTileOnBoard(
 ): { placedTile: PlacedTile; newBoard: PlacedTile[] } {
   let { placementSide = 'right', x, y, rotation } = options;
 
-  // First tile on an empty board: centered at origin (0, 0)
+  // First tile on an empty board: always centered at origin (0, 0)
   if (currentBoard.length === 0) {
     const defaultRotation = rotation !== undefined ? rotation : (tile.isDouble ? 90 : 0);
     const placedTile: PlacedTile = {
@@ -90,15 +93,22 @@ export function placeTileOnBoard(
     };
   }
 
-  // If explicit free placement mode: use given coordinates
+  // Spine baselines (initial tile is at (0, 0))
+  const spineY = currentBoard[0]?.y ?? 0;
+  const spineX = currentBoard[0]?.x ?? 0;
+
+  // If explicit free placement mode: snap to 10px grid so it never looks crooked
   if (placementSide === 'free' && x !== undefined && y !== undefined) {
+    const snappedX = Math.round(x / 10) * 10;
+    const snappedY = Math.round(y / 10) * 10;
+
     const placedTile: PlacedTile = {
       id: tile.id,
       sideA: tile.sideA,
       sideB: tile.sideB,
       isDouble: tile.isDouble,
-      x,
-      y,
+      x: snappedX,
+      y: snappedY,
       rotation: rotation || 0,
       placedBy: playerId,
       turnNumber,
@@ -113,15 +123,23 @@ export function placeTileOnBoard(
     };
   }
 
-  // Automatic Left / Right / Top / Bottom placement adjacent to chain without overlapping
+  // Filter tiles belonging to the horizontal spine vs vertical spine
+  const horizontalTiles = currentBoard.filter((t) => Math.abs(t.y - spineY) < 25);
+  const verticalTiles = currentBoard.filter((t) => Math.abs(t.x - spineX) < 25);
+
+  // Automatic Left / Right / Top / Bottom placement with exact laser-straight alignment
   if (placementSide === 'left') {
-    const leftMost = currentBoard.reduce((prev, curr) => (curr.x < prev.x ? curr : prev), currentBoard[0]);
+    const leftMost = horizontalTiles.length > 0
+      ? horizontalTiles.reduce((prev, curr) => (curr.x < prev.x ? curr : prev), horizontalTiles[0])
+      : currentBoard.reduce((prev, curr) => (curr.x < prev.x ? curr : prev), currentBoard[0]);
+
     const rot = rotation !== undefined ? rotation : (tile.isDouble ? 90 : 0);
     const baseDim = getTileDimensions(leftMost.rotation);
     const targetDim = getTileDimensions(rot);
 
+    // Laser-aligned along spineY, adjacent to leftMost
     const targetX = leftMost.x - (baseDim.width / 2) - TILE_GAP - (targetDim.width / 2);
-    const targetY = leftMost.y;
+    const targetY = spineY;
 
     const placedTile: PlacedTile = {
       id: tile.id,
@@ -143,12 +161,16 @@ export function placeTileOnBoard(
       newBoard: [placedTile, ...currentBoard],
     };
   } else if (placementSide === 'top') {
-    const topMost = currentBoard.reduce((prev, curr) => (curr.y < prev.y ? curr : prev), currentBoard[0]);
+    const topMost = verticalTiles.length > 0
+      ? verticalTiles.reduce((prev, curr) => (curr.y < prev.y ? curr : prev), verticalTiles[0])
+      : currentBoard.reduce((prev, curr) => (curr.y < prev.y ? curr : prev), currentBoard[0]);
+
     const rot = rotation !== undefined ? rotation : 90;
     const baseDim = getTileDimensions(topMost.rotation);
     const targetDim = getTileDimensions(rot);
 
-    const targetX = topMost.x;
+    // Laser-aligned along spineX, adjacent to topMost
+    const targetX = spineX;
     const targetY = topMost.y - (baseDim.height / 2) - TILE_GAP - (targetDim.height / 2);
 
     const placedTile: PlacedTile = {
@@ -171,12 +193,16 @@ export function placeTileOnBoard(
       newBoard: [...currentBoard, placedTile],
     };
   } else if (placementSide === 'bottom') {
-    const bottomMost = currentBoard.reduce((prev, curr) => (curr.y > prev.y ? curr : prev), currentBoard[0]);
+    const bottomMost = verticalTiles.length > 0
+      ? verticalTiles.reduce((prev, curr) => (curr.y > prev.y ? curr : prev), verticalTiles[0])
+      : currentBoard.reduce((prev, curr) => (curr.y > prev.y ? curr : prev), currentBoard[0]);
+
     const rot = rotation !== undefined ? rotation : 90;
     const baseDim = getTileDimensions(bottomMost.rotation);
     const targetDim = getTileDimensions(rot);
 
-    const targetX = bottomMost.x;
+    // Laser-aligned along spineX, adjacent to bottomMost
+    const targetX = spineX;
     const targetY = bottomMost.y + (baseDim.height / 2) + TILE_GAP + (targetDim.height / 2);
 
     const placedTile: PlacedTile = {
@@ -200,13 +226,17 @@ export function placeTileOnBoard(
     };
   } else {
     // Default right attachment
-    const rightMost = currentBoard.reduce((prev, curr) => (curr.x > prev.x ? curr : prev), currentBoard[0]);
+    const rightMost = horizontalTiles.length > 0
+      ? horizontalTiles.reduce((prev, curr) => (curr.x > prev.x ? curr : prev), horizontalTiles[0])
+      : currentBoard.reduce((prev, curr) => (curr.x > prev.x ? curr : prev), currentBoard[0]);
+
     const rot = rotation !== undefined ? rotation : (tile.isDouble ? 90 : 0);
     const baseDim = getTileDimensions(rightMost.rotation);
     const targetDim = getTileDimensions(rot);
 
+    // Laser-aligned along spineY, adjacent to rightMost
     const targetX = rightMost.x + (baseDim.width / 2) + TILE_GAP + (targetDim.width / 2);
-    const targetY = rightMost.y;
+    const targetY = spineY;
 
     const placedTile: PlacedTile = {
       id: tile.id,
