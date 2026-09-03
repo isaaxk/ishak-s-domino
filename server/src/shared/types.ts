@@ -2,7 +2,7 @@ export type DominoSetType = 'double-6' | 'double-7' | 'double-8' | 'double-9';
 export type GameType = 'classic' | 'all-fives';
 export type StartingTileRule = 'random' | 'host-selects' | 'specific-tile' | 'highest-double' | 'highest-tile' | 'previous-winner';
 export type EndGameCondition = 'target-score' | 'rounds-limit';
-export type PlacementSide = 'left' | 'right' | 'free';
+export type PlacementSide = 'left' | 'right' | 'top' | 'bottom' | 'free';
 
 export interface GameSettings {
   dominoSet: DominoSetType;
@@ -166,6 +166,11 @@ export interface ClientToServerEvents {
 
   'game:place_tile': (
     payload: { tileId: string; x: number; y: number; rotation: number; placementSide?: PlacementSide; attachedToId?: string },
+    callback: (res: { success: boolean; error?: string }) => void
+  ) => void;
+
+  'game:rotate_tile': (
+    payload: { tileId: string; rotation: number },
     callback: (res: { success: boolean; error?: string }) => void
   ) => void;
 

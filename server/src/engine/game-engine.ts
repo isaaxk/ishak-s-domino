@@ -179,9 +179,24 @@ export function stageTilePlacement(
     return { success: false, error: 'Tile is not in your hand' };
   }
 
-  // Check if tile is already staged in pendingPlacements
-  if (state.pendingPlacements.some((p) => p.id === tileId)) {
-    return { success: false, error: 'Tile already staged for placement this turn' };
+  // Check if tile is already staged in pendingPlacements -> update its rotation or position!
+  const existingIndex = state.pendingPlacements.findIndex((p) => p.id === tileId);
+  if (existingIndex !== -1) {
+    const current = state.pendingPlacements[existingIndex];
+    if (options.rotation !== undefined) {
+      current.rotation = options.rotation;
+    }
+    if (options.x !== undefined && options.y !== undefined) {
+      current.x = options.x;
+      current.y = options.y;
+    }
+    if (options.placementSide !== undefined) {
+      current.placementSide = options.placementSide;
+    }
+    const endsInfo = calculateOpenEnds([...state.board, ...state.pendingPlacements]);
+    state.openEnds = endsInfo.openEnds;
+    state.currentOpenEndsSum = endsInfo.sum;
+    return { success: true };
   }
 
   // Check if multiple placements are permitted

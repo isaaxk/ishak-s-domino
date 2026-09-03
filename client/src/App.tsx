@@ -254,6 +254,17 @@ export function App() {
     );
   };
 
+  // Rotate pending tile directly on the table
+  const handleRotatePendingTile = (tileId: string, newRotation: number) => {
+    setSelectedRotation(newRotation);
+    playSound('click');
+    socket.emit('game:rotate_tile', { tileId, rotation: newRotation }, (res) => {
+      if (!res.success) {
+        showToast(res.error || 'Failed to rotate tile', 'error');
+      }
+    });
+  };
+
   // Undo turn
   const handleUndoTurn = () => {
     socket.emit('game:undo_turn', (res) => {
@@ -421,6 +432,9 @@ export function App() {
             isMyTurn={isMyTurn}
             gameType={gameState.settings.gameType}
             onPlaceTile={handlePlaceTile}
+            onRotatePendingTile={handleRotatePendingTile}
+            onConfirmTurn={handleConfirmTurn}
+            onUndoTurn={handleUndoTurn}
           />
 
           {/* Player Hand Carousel & Action Dock */}

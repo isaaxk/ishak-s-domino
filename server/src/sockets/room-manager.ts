@@ -345,7 +345,7 @@ export class RoomManager {
     x: number,
     y: number,
     rotation: number,
-    placementSide?: 'left' | 'right' | 'free',
+    placementSide?: 'left' | 'right' | 'top' | 'bottom' | 'free',
     attachedToId?: string
   ): { success: boolean; error?: string } {
     const meta = this.socketToPlayer.get(socketId);
@@ -362,6 +362,20 @@ export class RoomManager {
       attachedToId,
     });
 
+    if (result.success) {
+      this.broadcastRoomState(meta.roomId);
+    }
+    return result;
+  }
+
+  rotateTile(socketId: string, tileId: string, rotation: number): { success: boolean; error?: string } {
+    const meta = this.socketToPlayer.get(socketId);
+    if (!meta) return { success: false, error: 'Not in a room' };
+
+    const session = this.sessions.get(meta.roomId);
+    if (!session) return { success: false, error: 'Session not found' };
+
+    const result = stageTilePlacement(session, meta.playerId, tileId, { rotation });
     if (result.success) {
       this.broadcastRoomState(meta.roomId);
     }

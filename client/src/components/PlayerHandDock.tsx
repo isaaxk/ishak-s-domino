@@ -124,7 +124,15 @@ export const PlayerHandDock: React.FC<PlayerHandDockProps> = ({
             hand.map((tile) => {
               const isSelected = selectedTile?.id === tile.id;
               return (
-                <div key={tile.id} className="flex-shrink-0 transition-transform">
+                <div
+                  key={tile.id}
+                  draggable={isMyTurn}
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('text/plain', tile.id);
+                    onSelectTile(tile);
+                  }}
+                  className="flex-shrink-0 transition-transform cursor-grab active:cursor-grabbing"
+                >
                   <DominoTileView
                     sideA={tile.sideA}
                     sideB={tile.sideB}

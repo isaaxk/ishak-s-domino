@@ -107,6 +107,16 @@ io.on('connection', (socket) => {
     }
   });
 
+  // 7b. Rotate Tile (Rotate staged pending placement)
+  socket.on('game:rotate_tile', ({ tileId, rotation }, callback) => {
+    try {
+      const result = roomManager.rotateTile(socket.id, tileId, rotation);
+      callback(result);
+    } catch (err: any) {
+      callback({ success: false, error: err.message });
+    }
+  });
+
   // 8. Undo Turn (Revert unconfirmed placements)
   socket.on('game:undo_turn', (callback) => {
     try {

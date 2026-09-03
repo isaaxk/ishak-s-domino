@@ -107,7 +107,7 @@ export function placeTileOnBoard(
     };
   }
 
-  // Automatic Left / Right placement adjacent to chain ends
+  // Automatic Left / Right / Top / Bottom placement adjacent to chain
   if (placementSide === 'left') {
     const leftMost = currentBoard.reduce((prev, curr) => (curr.x < prev.x ? curr : prev), currentBoard[0]);
     const isRotated = leftMost.rotation === 90 || leftMost.rotation === 270;
@@ -137,6 +137,66 @@ export function placeTileOnBoard(
     return {
       placedTile,
       newBoard: [placedTile, ...currentBoard],
+    };
+  } else if (placementSide === 'top') {
+    const topMost = currentBoard.reduce((prev, curr) => (curr.y < prev.y ? curr : prev), currentBoard[0]);
+    const isRotated = topMost.rotation === 90 || topMost.rotation === 270;
+    const topMostH = isRotated ? TILE_LENGTH : TILE_WIDTH;
+
+    const tileRotated = (rotation !== undefined) ? (rotation === 90 || rotation === 270) : true;
+    const targetH = tileRotated ? TILE_LENGTH : TILE_WIDTH;
+
+    const targetX = topMost.x;
+    const targetY = topMost.y - topMostH / 2 - TILE_GAP - targetH / 2;
+
+    const placedTile: PlacedTile = {
+      id: tile.id,
+      sideA: tile.sideA,
+      sideB: tile.sideB,
+      isDouble: tile.isDouble,
+      x: targetX,
+      y: targetY,
+      rotation: rotation !== undefined ? rotation : 90,
+      placedBy: playerId,
+      turnNumber,
+      stepIndex,
+      placementSide: 'top',
+      attachedToId: topMost.id,
+    };
+
+    return {
+      placedTile,
+      newBoard: [...currentBoard, placedTile],
+    };
+  } else if (placementSide === 'bottom') {
+    const bottomMost = currentBoard.reduce((prev, curr) => (curr.y > prev.y ? curr : prev), currentBoard[0]);
+    const isRotated = bottomMost.rotation === 90 || bottomMost.rotation === 270;
+    const bottomMostH = isRotated ? TILE_LENGTH : TILE_WIDTH;
+
+    const tileRotated = (rotation !== undefined) ? (rotation === 90 || rotation === 270) : true;
+    const targetH = tileRotated ? TILE_LENGTH : TILE_WIDTH;
+
+    const targetX = bottomMost.x;
+    const targetY = bottomMost.y + bottomMostH / 2 + TILE_GAP + targetH / 2;
+
+    const placedTile: PlacedTile = {
+      id: tile.id,
+      sideA: tile.sideA,
+      sideB: tile.sideB,
+      isDouble: tile.isDouble,
+      x: targetX,
+      y: targetY,
+      rotation: rotation !== undefined ? rotation : 90,
+      placedBy: playerId,
+      turnNumber,
+      stepIndex,
+      placementSide: 'bottom',
+      attachedToId: bottomMost.id,
+    };
+
+    return {
+      placedTile,
+      newBoard: [...currentBoard, placedTile],
     };
   } else {
     // Default right attachment
