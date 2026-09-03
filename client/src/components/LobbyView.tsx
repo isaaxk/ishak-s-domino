@@ -1,6 +1,21 @@
 import React, { useState } from 'react';
 import type { GameState, GameSettings } from '../../../shared/types.js';
-import { Crown, CheckCircle2, Circle, Users, Settings, Play, Copy, Check, Share2, ChevronUp, ChevronDown, Compass } from 'lucide-react';
+import {
+  Crown,
+  CheckCircle2,
+  Circle,
+  Users,
+  Settings,
+  Play,
+  Copy,
+  Check,
+  Share2,
+  ChevronUp,
+  ChevronDown,
+  Compass,
+  LogOut,
+  UserX,
+} from 'lucide-react';
 
 interface LobbyViewProps {
   state: GameState;
@@ -10,6 +25,9 @@ interface LobbyViewProps {
   onStartGame: (startingPlayerId?: string) => void;
   onOpenSettings: () => void;
   onReorderPlayers?: (playerIds: string[]) => void;
+  onAssignSeat?: (playerId: string, seatIndex: number) => void;
+  onKickPlayer?: (playerId: string) => void;
+  onLeaveRoom: () => void;
 }
 
 export const LobbyView: React.FC<LobbyViewProps> = ({
@@ -20,6 +38,9 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   onStartGame,
   onOpenSettings,
   onReorderPlayers,
+  onAssignSeat,
+  onKickPlayer,
+  onLeaveRoom,
 }) => {
   const [copied, setCopied] = useState(false);
   const me = state.players.find((p) => p.id === myPlayerId);
@@ -69,11 +90,25 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
     <div className="flex-1 w-full max-w-lg mx-auto p-4 flex flex-col justify-between overflow-y-auto">
       <div className="flex flex-col gap-5">
         {/* Room Header & Code Banner */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl text-center flex flex-col items-center gap-3">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-widest">
-            Lobby & Room Code
-          </span>
-          <div className="flex items-center gap-3">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-widest">
+              Lobby & Room Code
+            </span>
+            <button
+              onClick={() => {
+                if (confirm('Are you sure you want to leave this room?')) {
+                  onLeaveRoom();
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-1 text-xs text-rose-400 hover:text-rose-200 bg-rose-950/40 hover:bg-rose-900/60 rounded-xl border border-rose-800/50 transition font-bold"
+              title="Leave Room"
+            >
+              <LogOut size={14} /> Leave Room
+            </button>
+          </div>
+
+          <div className="flex items-center justify-center gap-3">
             <span className="text-4xl font-mono font-black text-emerald-400 tracking-wider">
               {state.roomId}
             </span>
@@ -92,7 +127,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               <Share2 size={20} />
             </button>
           </div>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-400 text-center">
             Share this code with your friends on phone or PC to join the table.
           </p>
         </div>
@@ -115,136 +150,198 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
           </div>
 
           <div className="flex flex-col gap-2">
-            {state.players.map((p, index) => (
-              <div
-                key={p.id}
-                className="flex items-center justify-between p-3 rounded-xl bg-slate-800/80 border border-slate-700"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center font-bold text-sm text-emerald-400">
-                    {p.nickname.slice(0, 2).toUpperCase()}
-                  </div>
-                  <div className="flex flex-col">
-                    <div className="flex items-center gap-1.5 text-sm font-semibold text-white">
-                      <span>{p.nickname}</span>
-                      {p.isHost && (
-                        <Crown size={14} className="text-amber-400 fill-amber-400" title="Host" />
-                      )}
-                      {p.id === myPlayerId && (
-                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-700 text-slate-300">You</span>
-                      )}
-                    </div>
-                    {/* Physical Table Seat Position Badge */}
-                    <div className="flex items-center gap-1 text-[11px] text-amber-300/90 font-medium">
-                      <Compass size={11} className="text-amber-400" />
-                      <span>Pos {index + 1}: {getSeatPositionName(index, state.players.length)}</span>
-                    </div>
-                  </div>
-                </div>
+            {state.players.map((p, index) => {
+              const totalSlots = Math.max(state.settings.maxPlayers || 6, 6);
 
-                <div className="flex items-center gap-2">
-                  {/* Creator Seating Move Up / Down Buttons */}
-                  {isHost && state.players.length > 1 && (
-                    <div className="flex items-center bg-slate-900 rounded-lg p-0.5 border border-slate-700">
-                      <button
-                        onClick={() => handleMovePlayer(index, 'up')}
-                        disabled={index === 0}
-                        className={`p-1 rounded transition ${
-                          index === 0
-                            ? 'text-slate-600 cursor-not-allowed'
-                            : 'text-slate-300 hover:text-white hover:bg-slate-800 active:scale-95'
-                        }`}
-                        title="Move player seat earlier (counter-clockwise)"
-                      >
-                        <ChevronUp size={16} />
-                      </button>
-                      <button
-                        onClick={() => handleMovePlayer(index, 'down')}
-                        disabled={index === state.players.length - 1}
-                        className={`p-1 rounded transition ${
-                          index === state.players.length - 1
-                            ? 'text-slate-600 cursor-not-allowed'
-                            : 'text-slate-300 hover:text-white hover:bg-slate-800 active:scale-95'
-                        }`}
-                        title="Move player seat later (clockwise)"
-                      >
-                        <ChevronDown size={16} />
-                      </button>
+              return (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between p-3 rounded-xl bg-slate-800/80 border border-slate-700"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center font-bold text-sm text-emerald-400">
+                      {p.nickname.slice(0, 2).toUpperCase()}
                     </div>
-                  )}
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-1.5 text-sm font-semibold text-white">
+                        <span>{p.nickname}</span>
+                        {p.isHost && (
+                          <Crown size={14} className="text-amber-400 fill-amber-400" title="Manager / Host" />
+                        )}
+                        {p.id === myPlayerId && (
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-700 text-slate-300">You</span>
+                        )}
+                      </div>
 
-                  <div className="flex items-center gap-1 text-xs font-semibold">
-                    {p.isReady ? (
-                      <span className="flex items-center gap-1 text-emerald-400">
-                        <CheckCircle2 size={16} /> Ready
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1 text-slate-500">
-                        <Circle size={16} /> Waiting
-                      </span>
+                      {/* Position Number Selector or Display */}
+                      {isHost ? (
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <Compass size={11} className="text-amber-400" />
+                          <label className="text-[10px] font-bold text-slate-400">Pos:</label>
+                          <select
+                            value={p.seatIndex}
+                            onChange={(e) => onAssignSeat?.(p.id, Number(e.target.value))}
+                            className="bg-slate-900 text-amber-300 font-bold text-xs px-2 py-0.5 rounded border border-amber-500/40 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                            title="Manager assigns position number to this player"
+                          >
+                            {Array.from({ length: totalSlots }).map((_, sIdx) => (
+                              <option key={sIdx} value={sIdx}>
+                                Position {sIdx + 1}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1 text-[11px] text-amber-300/90 font-medium mt-0.5">
+                          <Compass size={11} className="text-amber-400" />
+                          <span>Position {p.seatIndex + 1}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {/* Shift Position Up / Down */}
+                    {isHost && state.players.length > 1 && (
+                      <div className="flex items-center bg-slate-900 rounded-lg p-0.5 border border-slate-700">
+                        <button
+                          onClick={() => handleMovePlayer(index, 'up')}
+                          disabled={index === 0}
+                          className={`p-1 rounded transition ${
+                            index === 0
+                              ? 'text-slate-600 cursor-not-allowed'
+                              : 'text-slate-300 hover:text-white hover:bg-slate-800 active:scale-95'
+                          }`}
+                          title="Shift position earlier"
+                        >
+                          <ChevronUp size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleMovePlayer(index, 'down')}
+                          disabled={index === state.players.length - 1}
+                          className={`p-1 rounded transition ${
+                            index === state.players.length - 1
+                              ? 'text-slate-600 cursor-not-allowed'
+                              : 'text-slate-300 hover:text-white hover:bg-slate-800 active:scale-95'
+                          }`}
+                          title="Shift position later"
+                        >
+                          <ChevronDown size={16} />
+                        </button>
+                      </div>
                     )}
+
+                    {/* Manager Kick Player Button */}
+                    {isHost && p.id !== myPlayerId && (
+                      <button
+                        onClick={() => {
+                          if (confirm(`Are you sure you want to kick ${p.nickname} from the room?`)) {
+                            onKickPlayer?.(p.id);
+                          }
+                        }}
+                        className="p-1.5 rounded-lg text-rose-400 hover:text-rose-200 hover:bg-rose-950/60 border border-rose-800/40 transition active:scale-95"
+                        title={`Kick ${p.nickname}`}
+                      >
+                        <UserX size={15} />
+                      </button>
+                    )}
+
+                    <div className="flex items-center gap-1 text-xs font-semibold">
+                      {p.isReady ? (
+                        <span className="flex items-center gap-1 text-emerald-400">
+                          <CheckCircle2 size={16} /> Ready
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-slate-500">
+                          <Circle size={16} /> Waiting
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
-          {/* Visual Table Seating Arrangement (Physical Positions Around Felt) */}
-          {state.players.length >= 2 && (
+          {/* Visual Table Seating Arrangement: Displays ALL Positions (1 to N) */}
+          {state.players.length >= 1 && (
             <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800/80 flex flex-col gap-2">
               <div className="flex items-center justify-between text-xs font-bold text-slate-300">
                 <span className="flex items-center gap-1.5 text-amber-400">
-                  <Compass size={14} /> Physical Seating Around Table
+                  <Compass size={14} /> Physical Table Layout ({Math.max(state.settings.maxPlayers || 6, 6)} Positions)
                 </span>
-                {isHost && <span className="text-[10px] text-amber-300/80 font-normal">Use ▲ ▼ to change seats</span>}
+                {isHost && <span className="text-[10px] text-amber-300/80 font-normal">Manager gives each player a number</span>}
               </div>
 
-              <div className="relative w-full h-28 bg-[#04140b] rounded-xl border border-emerald-950/80 p-2 flex items-center justify-center shadow-inner overflow-hidden">
-                {/* Watermark */}
-                <div className="text-[10px] font-serif font-black tracking-widest text-amber-400/20 uppercase select-none pointer-events-none">
-                  DOMINO TABLE
+              {/* Oval Domino Felt Table with ALL Positions Clearly Numbered */}
+              <div className="relative w-full h-44 sm:h-52 bg-[#04140b] rounded-3xl border border-emerald-950/80 p-2 flex items-center justify-center shadow-inner overflow-hidden">
+                {/* Watermark in center */}
+                <div className="text-center select-none pointer-events-none">
+                  <div className="text-[10px] font-serif font-black tracking-widest text-amber-400/25 uppercase">
+                    ISHAK'S DOMINO
+                  </div>
+                  <div className="text-[8px] tracking-wider text-amber-400/20 uppercase mt-0.5">
+                    CLOCKWISE TURNS: 1 → 2 → 3 → 4 → 5 → 6
+                  </div>
                 </div>
 
-                {/* Seat 0 (South / Bottom) */}
-                {state.players[0] && (
-                  <div className="absolute bottom-1 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-slate-900/90 border border-amber-400/60 text-[10px] font-bold text-amber-200 shadow flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                    <span>South: {state.players[0].nickname}</span>
-                  </div>
-                )}
+                {/* Render every single position slot from 1 to totalSlots */}
+                {(() => {
+                  const totalSlots = Math.max(state.settings.maxPlayers || 6, 6);
+                  return Array.from({ length: totalSlots }).map((_, slotIdx) => {
+                    // Calculate oval coordinates
+                    const angle = Math.PI / 2 + (slotIdx * 2 * Math.PI) / totalSlots;
+                    const x = 50 - 41 * Math.sin(angle);
+                    const y = 50 + 36 * Math.cos(angle);
 
-                {/* Seat 1 (North in 2p, West in 3p/4p) */}
-                {state.players[1] && (
-                  <div
-                    className={`absolute px-2.5 py-0.5 rounded-full bg-slate-900/90 border border-slate-700 text-[10px] font-bold text-slate-200 shadow flex items-center gap-1 ${
-                      state.players.length === 2
-                        ? 'top-1 left-1/2 -translate-x-1/2'
-                        : 'left-2 top-1/2 -translate-y-1/2'
-                    }`}
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                    <span>{state.players.length === 2 ? 'North' : 'West'}: {state.players[1].nickname}</span>
-                  </div>
-                )}
+                    const playerAtSlot = state.players.find((pl) => pl.seatIndex === slotIdx);
 
-                {/* Seat 2 (North in 3p/4p) */}
-                {state.players[2] && (
-                  <div className="absolute top-1 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-slate-900/90 border border-slate-700 text-[10px] font-bold text-slate-200 shadow flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                    <span>North: {state.players[2].nickname}</span>
-                  </div>
-                )}
-
-                {/* Seat 3 (East in 4p) */}
-                {state.players[3] && (
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2 px-2.5 py-0.5 rounded-full bg-slate-900/90 border border-slate-700 text-[10px] font-bold text-slate-200 shadow flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                    <span>East: {state.players[3].nickname}</span>
-                  </div>
-                )}
+                    return (
+                      <div
+                        key={slotIdx}
+                        style={{
+                          left: `${x}%`,
+                          top: `${y}%`,
+                          transform: 'translate(-50%, -50%)',
+                          position: 'absolute',
+                        }}
+                        className="z-10"
+                      >
+                        {playerAtSlot ? (
+                          <div
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold shadow-md flex items-center gap-1 whitespace-nowrap border ${
+                              playerAtSlot.isHost
+                                ? 'bg-amber-950/95 border-amber-400 text-amber-200 ring-1 ring-amber-400/50'
+                                : playerAtSlot.id === myPlayerId
+                                ? 'bg-emerald-950/95 border-emerald-400 text-emerald-200'
+                                : 'bg-slate-900/95 border-slate-700 text-slate-200'
+                            }`}
+                            title={`Position ${slotIdx + 1}: ${playerAtSlot.nickname}`}
+                          >
+                            <span className="w-4 h-4 rounded-full bg-amber-400/25 text-amber-300 text-[9px] flex items-center justify-center font-black border border-amber-500/40">
+                              {slotIdx + 1}
+                            </span>
+                            <span className="truncate max-w-[64px] sm:max-w-[80px]">{playerAtSlot.nickname}</span>
+                            {playerAtSlot.isHost && <Crown size={10} className="text-amber-400 fill-amber-400 flex-shrink-0" />}
+                          </div>
+                        ) : (
+                          <div
+                            className="px-2 py-0.5 rounded-full text-[10px] font-medium border border-dashed border-slate-700/70 bg-slate-950/50 text-slate-500 flex items-center gap-1 whitespace-nowrap"
+                            title={`Position ${slotIdx + 1}: Empty`}
+                          >
+                            <span className="w-3.5 h-3.5 rounded-full bg-slate-800 text-slate-400 text-[9px] flex items-center justify-center font-bold">
+                              {slotIdx + 1}
+                            </span>
+                            <span className="text-[9px]">Pos {slotIdx + 1}</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
               </div>
               <div className="text-[10px] text-slate-400 text-center">
-                Turn order moves clockwise around the table: South → West → North → East
+                All table positions are numbered 1 through {Math.max(state.settings.maxPlayers || 6, 6)}. Turn order follows position numbers clockwise.
               </div>
             </div>
           )}

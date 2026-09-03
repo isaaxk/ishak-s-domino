@@ -405,6 +405,217 @@ export class RoomManager {
     return result;
   }
 
+  assignSeat(socketId: string, targetPlayerId: string, seatIndex: number): { success: boolean; error?: string } {
+    const meta = this.socketToPlayer.get(socketId);
+    if (!meta) return { success: false, error: 'Not in a room' };
+    const session = this.sessions.get(meta.roomId);
+    if (!session) return { success: false, error: 'Session not found' };
+
+    const caller = session.state.players.find((p) => p.id === meta.playerId);
+    if (!caller || !caller.isHost) return { success: false, error: 'Only the room manager can assign positions' };
+
+    const targetPlayer = session.state.players.find((p) => p.id === targetPlayerId);
+    if (!targetPlayer) return { success: false, error: 'Player not found' };
+
+    // If another player currently has this seatIndex, swap them
+    const existingPlayerWithSeat = session.state.players.find((p) => p.seatIndex === seatIndex && p.id !== targetPlayerId);
+    if (existingPlayerWithSeat) {
+      existingPlayerWithSeat.seatIndex = targetPlayer.seatIndex;
+    }
+    targetPlayer.seatIndex = seatIndex;
+
+    // Keep session.state.players sorted by seatIndex
+    session.state.players.sort((a, b) => a.seatIndex - b.seatIndex);
+
+    this.broadcastRoomState(meta.roomId);
+    return { success: true };
+  }
+
+  leaveRoom(socketId: string): { success: boolean; error?: string } {
+    const meta = this.socketToPlayer.get(socketId);
+    if (!meta) return { success: false, error: 'Not in a room' };
+    const session = this.sessions.get(meta.roomId);
+    if (!session) return { success: false, error: 'Session not found' };
+
+    const leavingPlayerId = meta.playerId;
+    const isHost = session.state.players.find((p) => p.id === leavingPlayerId)?.isHost;
+
+    // Remove player
+    session.state.players = session.state.players.filter((p) => p.id !== leavingPlayerId);
+    delete session.privateHands[leavingPlayerId];
+
+    if (session.state.players.length === 0) {
+      this.sessions.delete(meta.roomId);
+    } else {
+      // Transfer host if host left
+      if (isHost && session.state.players.length > 0) {
+        session.state.players[0].isHost = true;
+      }
+
+      // If in waiting room, re-order seatIndex cleanly
+      if (session.state.phase === 'waiting_players' || session.state.phase === 'waiting_ready') {
+        session.state.players.forEach((p, idx) => {
+          p.seatIndex = idx;
+        });
+      }
+
+      // If leaving player was starterRequest volunteer, clear it
+      if (session.state.starterRequest?.playerId === leavingPlayerId) {
+        session.state.starterRequest = null;
+      }
+
+      // If leaving player was active turn, advance turn
+      if (session.state.currentTurnPlayerId === leavingPlayerId) {
+        const nextPlayer = session.state.players[0];
+        session.state.currentTurnPlayerId = nextPlayer ? nextPlayer.id : null;
+        session.state.turnStartTime = Date.now();
+      }
+
+      this.broadcastRoomState(meta.roomId);
+    }
+
+    this.socketToPlayer.delete(socketId);
+    this.playerToSocket.delete(leavingPlayerId);
+
+    const socket = this.io.sockets.sockets.get(socketId);
+    if (socket) {
+      socket.leave(meta.roomId);
+    }
+
+    return { success: true };
+  }
+
+  kickPlayer(socketId: string, targetPlayerId: string): { success: boolean; error?: string } {
+    const meta = this.socketToPlayer.get(socketId);
+    if (!meta) return { success: false, error: 'Not in a room' };
+    const session = this.sessions.get(meta.roomId);
+    if (!session) return { success: false, error: 'Session not found' };
+
+    const caller = session.state.players.find((p) => p.id === meta.playerId);
+    if (!caller || !caller.isHost) return { success: false, error: 'Only the room manager can kick players' };
+
+    if (targetPlayerId === meta.playerId) {
+      return { success: false, error: 'The manager cannot kick themselves' };
+    }
+
+    const targetPlayer = session.state.players.find((p) => p.id === targetPlayerId);
+    if (!targetPlayer) return { success: false, error: 'Player to kick not found' };
+
+    const targetSocketId = this.playerToSocket.get(targetPlayerId);
+
+    // Remove player from session
+    session.state.players = session.state.players.filter((p) => p.id !== targetPlayerId);
+    delete session.privateHands[targetPlayerId];
+
+    if (session.state.phase === 'waiting_players' || session.state.phase === 'waiting_ready') {
+      session.state.players.forEach((p, idx) => {
+        p.seatIndex = idx;
+      });
+    }
+
+    if (session.state.starterRequest?.playerId === targetPlayerId) {
+      session.state.starterRequest = null;
+    }
+
+    if (session.state.currentTurnPlayerId === targetPlayerId) {
+      const nextPlayer = session.state.players[0];
+      session.state.currentTurnPlayerId = nextPlayer ? nextPlayer.id : null;
+      session.state.turnStartTime = Date.now();
+    }
+
+    // Notify kicked player
+    if (targetSocketId) {
+      const targetSocket = this.io.sockets.sockets.get(targetSocketId);
+      if (targetSocket) {
+        targetSocket.emit('player:kicked', {
+          reason: 'You were kicked from the room by the manager.',
+        });
+        targetSocket.leave(meta.roomId);
+      } else {
+        this.io.to(targetSocketId).emit('player:kicked', {
+          reason: 'You were kicked from the room by the manager.',
+        });
+      }
+      this.socketToPlayer.delete(targetSocketId);
+      this.playerToSocket.delete(targetPlayerId);
+    }
+
+    this.broadcastRoomState(meta.roomId);
+    return { success: true };
+  }
+
+  volunteerStarter(socketId: string): { success: boolean; error?: string } {
+    const meta = this.socketToPlayer.get(socketId);
+    if (!meta) return { success: false, error: 'Not in a room' };
+    const session = this.sessions.get(meta.roomId);
+    if (!session) return { success: false, error: 'Session not found' };
+
+    if (session.state.phase !== 'selecting_starter') {
+      return { success: false, error: 'Starting player is not currently being selected' };
+    }
+
+    const player = session.state.players.find((p) => p.id === meta.playerId);
+    if (!player) return { success: false, error: 'Player not found' };
+
+    session.state.starterRequest = {
+      playerId: player.id,
+      playerNickname: player.nickname,
+    };
+
+    this.broadcastRoomState(meta.roomId);
+    return { success: true };
+  }
+
+  respondStarterRequest(socketId: string, approved: boolean): { success: boolean; error?: string } {
+    const meta = this.socketToPlayer.get(socketId);
+    if (!meta) return { success: false, error: 'Not in a room' };
+    const session = this.sessions.get(meta.roomId);
+    if (!session) return { success: false, error: 'Session not found' };
+
+    const caller = session.state.players.find((p) => p.id === meta.playerId);
+    if (!caller || !caller.isHost) {
+      return { success: false, error: 'Only the room manager can approve or refuse starter requests' };
+    }
+
+    if (!session.state.starterRequest) {
+      return { success: false, error: 'No starter request pending' };
+    }
+
+    const requestedPlayerId = session.state.starterRequest.playerId;
+    const requestedPlayer = session.state.players.find((p) => p.id === requestedPlayerId);
+
+    if (approved && requestedPlayer) {
+      session.state.currentTurnPlayerId = requestedPlayerId;
+      session.state.phase = 'playing';
+      session.state.turnStartTime = Date.now();
+      session.state.starterRequest = null;
+      session.state.lastMoveSummary = {
+        playerId: requestedPlayerId,
+        playerNickname: requestedPlayer.nickname,
+        moveType: 'play',
+        pointsAwarded: 0,
+        description: `${caller.nickname} agreed to let ${requestedPlayer.nickname} start Round ${session.state.roundNumber}`,
+        timestamp: Date.now(),
+      };
+    } else {
+      // Refused
+      const refusedName = session.state.starterRequest.playerNickname;
+      session.state.starterRequest = null;
+      session.state.lastMoveSummary = {
+        playerId: caller.id,
+        playerNickname: caller.nickname,
+        moveType: 'pass',
+        pointsAwarded: 0,
+        description: `${caller.nickname} refused ${refusedName}'s request to start`,
+        timestamp: Date.now(),
+      };
+    }
+
+    this.db.saveGameState(meta.roomId, session.state, session.privateHands, session.boneyard);
+    this.broadcastRoomState(meta.roomId);
+    return { success: true };
+  }
+
   placeTile(
     socketId: string,
     tileId: string,

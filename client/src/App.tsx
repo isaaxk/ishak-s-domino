@@ -136,10 +136,19 @@ export function App() {
       showToast(message, 'error');
     });
 
+    socket.on('player:kicked', ({ reason }) => {
+      localStorage.removeItem('domino_player_session');
+      setGameState(null);
+      setMyPlayerId('');
+      setSessionToken(null);
+      alert(reason || 'You were kicked from the room by the manager.');
+    });
+
     return () => {
       socket.off('room:state');
       socket.off('game:hand_sync');
       socket.off('error:notification');
+      socket.off('player:kicked');
     };
   }, [myPlayerId]);
 
@@ -236,6 +245,62 @@ export function App() {
         showToast(res.error || 'Failed to select starting player', 'error');
       } else {
         playSound('turn');
+      }
+    });
+  };
+
+  // Player volunteers to start the round
+  const handleVolunteerStarter = () => {
+    socket.emit('game:volunteer_starter', (res) => {
+      if (!res.success) {
+        showToast(res.error || 'Cannot volunteer to start', 'error');
+      } else {
+        playSound('turn');
+        showToast('Requested to start round!', 'info');
+      }
+    });
+  };
+
+  // Manager agrees or refuses starter request
+  const handleRespondStarterRequest = (approved: boolean) => {
+    socket.emit('game:respond_starter_request', { approved }, (res) => {
+      if (!res.success) {
+        showToast(res.error || 'Action failed', 'error');
+      } else {
+        playSound('turn');
+      }
+    });
+  };
+
+  // Leave room
+  const handleLeaveRoom = () => {
+    socket.emit('room:leave', () => {
+      localStorage.removeItem('domino_player_session');
+      setGameState(null);
+      setMyPlayerId('');
+      setSessionToken(null);
+      showToast('You left the room', 'info');
+    });
+  };
+
+  // Manager kicks player
+  const handleKickPlayer = (playerId: string) => {
+    socket.emit('room:kick_player', { playerId }, (res) => {
+      if (!res.success) {
+        showToast(res.error || 'Failed to kick player', 'error');
+      } else {
+        showToast('Player removed from room', 'info');
+      }
+    });
+  };
+
+  // Manager assigns seat number to player
+  const handleAssignSeat = (playerId: string, seatIndex: number) => {
+    socket.emit('room:assign_seat', { playerId, seatIndex }, (res) => {
+      if (!res.success) {
+        showToast(res.error || 'Failed to assign seat', 'error');
+      } else {
+        playSound('click');
       }
     });
   };
@@ -431,6 +496,8 @@ export function App() {
             settings={gameState.settings}
             onOpenSettings={() => setIsSettingsOpen(true)}
             onOpenHelp={() => setIsHelpOpen(true)}
+            onLeaveRoom={handleLeaveRoom}
+            onKickPlayer={handleKickPlayer}
           />
           <LobbyView
             state={gameState}
@@ -440,6 +507,9 @@ export function App() {
             onStartGame={handleStartGame}
             onOpenSettings={() => setIsSettingsOpen(true)}
             onReorderPlayers={handleReorderPlayers}
+            onAssignSeat={handleAssignSeat}
+            onKickPlayer={handleKickPlayer}
+            onLeaveRoom={handleLeaveRoom}
           />
         </>
       ) : (
@@ -455,6 +525,8 @@ export function App() {
             settings={gameState.settings}
             onOpenSettings={() => setIsSettingsOpen(true)}
             onOpenHelp={() => setIsHelpOpen(true)}
+            onLeaveRoom={handleLeaveRoom}
+            onKickPlayer={handleKickPlayer}
           />
 
           {/* Interactive 2D Domino Felt Board */}
@@ -520,6 +592,8 @@ export function App() {
           myPlayerId={myPlayerId}
           isHost={isHost}
           onSelectStarter={handleSelectStarter}
+          onVolunteerStarter={handleVolunteerStarter}
+          onRespondStarterRequest={handleRespondStarterRequest}
         />
       )}
 

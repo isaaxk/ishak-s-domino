@@ -1,6 +1,6 @@
 import React from 'react';
 import type { PlayerState, GameSettings } from '../../../shared/types.js';
-import { Settings, Copy, Check, Info } from 'lucide-react';
+import { Settings, Copy, Check, Info, LogOut, UserX } from 'lucide-react';
 
 interface StatusBarProps {
   roomId: string;
@@ -12,6 +12,8 @@ interface StatusBarProps {
   settings: GameSettings;
   onOpenSettings: () => void;
   onOpenHelp: () => void;
+  onLeaveRoom: () => void;
+  onKickPlayer?: (playerId: string) => void;
 }
 
 export const StatusBar: React.FC<StatusBarProps> = ({
@@ -24,6 +26,8 @@ export const StatusBar: React.FC<StatusBarProps> = ({
   settings,
   onOpenSettings,
   onOpenHelp,
+  onLeaveRoom,
+  onKickPlayer,
 }) => {
   const [copied, setCopied] = React.useState(false);
 
@@ -76,6 +80,19 @@ export const StatusBar: React.FC<StatusBarProps> = ({
               <Settings size={18} />
             </button>
           )}
+
+          {/* Leave Table Button */}
+          <button
+            onClick={() => {
+              if (confirm('Are you sure you want to leave this table?')) {
+                onLeaveRoom();
+              }
+            }}
+            className="flex items-center gap-1 px-2.5 py-1 text-xs text-rose-400 hover:text-rose-200 bg-rose-950/40 hover:bg-rose-900/60 rounded-lg border border-rose-800/50 transition font-bold"
+            title="Leave Table"
+          >
+            <LogOut size={13} /> Leave
+          </button>
         </div>
       </div>
 
@@ -104,6 +121,21 @@ export const StatusBar: React.FC<StatusBarProps> = ({
               <span className="text-[11px] px-1.5 py-0.2 rounded-full bg-black/40 text-slate-300">
                 {p.tileCount} 🀱
               </span>
+
+              {/* Manager Kick Button during game */}
+              {isHost && !isMe && onKickPlayer && (
+                <button
+                  onClick={() => {
+                    if (confirm(`Kick ${p.nickname} from the game?`)) {
+                      onKickPlayer(p.id);
+                    }
+                  }}
+                  className="text-rose-400 hover:text-rose-200 hover:bg-rose-900/60 p-0.5 rounded transition ml-0.5"
+                  title={`Kick ${p.nickname}`}
+                >
+                  <UserX size={12} />
+                </button>
+              )}
             </div>
           );
         })}

@@ -191,6 +191,56 @@ io.on('connection', (socket) => {
     }
   });
 
+  // 12. Player Leaves Room
+  socket.on('room:leave', (callback) => {
+    try {
+      const result = roomManager.leaveRoom(socket.id);
+      callback(result);
+    } catch (err: any) {
+      callback({ success: false, error: err.message });
+    }
+  });
+
+  // 13. Manager Kicks Player
+  socket.on('room:kick_player', ({ playerId }, callback) => {
+    try {
+      const result = roomManager.kickPlayer(socket.id, playerId);
+      callback(result);
+    } catch (err: any) {
+      callback({ success: false, error: err.message });
+    }
+  });
+
+  // 14. Manager Assigns Seat Number to Player
+  socket.on('room:assign_seat', ({ playerId, seatIndex }, callback) => {
+    try {
+      const result = roomManager.assignSeat(socket.id, playerId, seatIndex);
+      callback(result);
+    } catch (err: any) {
+      callback({ success: false, error: err.message });
+    }
+  });
+
+  // 15. Player Volunteers to Start Round
+  socket.on('game:volunteer_starter', (callback) => {
+    try {
+      const result = roomManager.volunteerStarter(socket.id);
+      callback(result);
+    } catch (err: any) {
+      callback({ success: false, error: err.message });
+    }
+  });
+
+  // 16. Manager Agrees or Refuses Volunteer Starter
+  socket.on('game:respond_starter_request', ({ approved }, callback) => {
+    try {
+      const result = roomManager.respondStarterRequest(socket.id, approved);
+      callback(result);
+    } catch (err: any) {
+      callback({ success: false, error: err.message });
+    }
+  });
+
   // Disconnect
   socket.on('disconnect', () => {
     roomManager.handleDisconnect(socket.id);

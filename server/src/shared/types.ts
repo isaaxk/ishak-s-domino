@@ -138,6 +138,10 @@ export interface GameState {
   currentOpenEndsSum?: number;
   canChangeLastMove?: boolean;
   lastMovePlayerId?: string | null;
+  starterRequest?: {
+    playerId: string;
+    playerNickname: string;
+  } | null;
 }
 
 export interface ClientToServerEvents {
@@ -211,6 +215,29 @@ export interface ClientToServerEvents {
     callback: (res: { success: boolean; error?: string }) => void
   ) => void;
 
+  'room:leave': (
+    callback: (res: { success: boolean; error?: string }) => void
+  ) => void;
+
+  'room:kick_player': (
+    payload: { playerId: string },
+    callback: (res: { success: boolean; error?: string }) => void
+  ) => void;
+
+  'room:assign_seat': (
+    payload: { playerId: string; seatIndex: number },
+    callback: (res: { success: boolean; error?: string }) => void
+  ) => void;
+
+  'game:volunteer_starter': (
+    callback: (res: { success: boolean; error?: string }) => void
+  ) => void;
+
+  'game:respond_starter_request': (
+    payload: { approved: boolean },
+    callback: (res: { success: boolean; error?: string }) => void
+  ) => void;
+
   'room:restart': (
     callback: (res: { success: boolean; error?: string }) => void
   ) => void;
@@ -226,5 +253,6 @@ export interface ServerToClientEvents {
   'game:player_pass': (payload: { playerId: string; consecutivePasses: number }) => void;
   'game:round_over': (payload: { winnerId: string | null; pointsWon: number; reason: string; revealedHands: Record<string, DominoTile[]> }) => void;
   'game:game_over': (payload: { winnerId: string; finalScores: Record<string, number> }) => void;
+  'player:kicked': (payload: { reason: string }) => void;
   'error:notification': (payload: { message: string }) => void;
 }
