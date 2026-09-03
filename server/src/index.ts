@@ -154,8 +154,14 @@ io.on('connection', (socket) => {
 });
 
 // Production: Serve static client build if present
-const clientDistPath = path.resolve(process.cwd(), '../client/dist');
+const candidatePaths = [
+  path.resolve(process.cwd(), 'client/dist'),
+  path.resolve(process.cwd(), '../client/dist'),
+];
+const clientDistPath = candidatePaths.find((p) => fs.existsSync(p)) || candidatePaths[0];
+
 if (fs.existsSync(clientDistPath)) {
+  console.log(`Serving static client files from ${clientDistPath}`);
   app.use(express.static(clientDistPath));
   app.get('*', (_req, res) => {
     res.sendFile(path.join(clientDistPath, 'index.html'));
