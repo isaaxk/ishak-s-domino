@@ -26,12 +26,11 @@
   }
 }
 
-/* Custom Domino Table styles */
+/* Custom Domino Table styles - ultra deep luxurious dark green without dots */
 .table-felt-pattern {
-  background-color: #154734;
-  background-image: radial-gradient(#1e6349 15%, transparent 16%), radial-gradient(#103d2c 15%, transparent 16%);
-  background-size: 40px 40px;
-  background-position: 0 0, 20px 20px;
+  background-color: #04140b;
+  background-image: radial-gradient(circle at 50% 50%, #072314 0%, #020d07 100%);
+  box-shadow: inset 0 0 120px rgba(0, 0, 0, 0.9);
 }
 
 /* Custom scrollbars for mobile horizontal docks */

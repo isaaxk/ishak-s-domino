@@ -192,16 +192,25 @@ export function stageTilePlacement(
   const existingIndex = state.pendingPlacements.findIndex((p) => p.id === tileId);
   if (existingIndex !== -1) {
     const current = state.pendingPlacements[existingIndex];
-    if (options.rotation !== undefined) {
-      current.rotation = options.rotation;
-    }
-    if (options.x !== undefined && options.y !== undefined) {
+    const newRot = options.rotation !== undefined ? options.rotation : current.rotation;
+    const side = options.placementSide !== undefined ? options.placementSide : current.placementSide;
+
+    current.rotation = newRot;
+    current.placementSide = side;
+
+    if (side !== 'free' && state.board.length > 0) {
+      // Re-calculate non-overlapping snapped coordinates based on new orientation
+      const recalculated = placeTileOnBoard(state.board, tile, playerId, 0, 0, {
+        placementSide: side,
+        rotation: newRot,
+      });
+      current.x = recalculated.placedTile.x;
+      current.y = recalculated.placedTile.y;
+    } else if (options.x !== undefined && options.y !== undefined) {
       current.x = options.x;
       current.y = options.y;
     }
-    if (options.placementSide !== undefined) {
-      current.placementSide = options.placementSide;
-    }
+
     const endsInfo = calculateOpenEnds([...state.board, ...state.pendingPlacements]);
     state.openEnds = endsInfo.openEnds;
     state.currentOpenEndsSum = endsInfo.sum;

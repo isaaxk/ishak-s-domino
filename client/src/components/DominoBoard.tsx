@@ -311,6 +311,16 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
           transformOrigin: '0 0',
         }}
       >
+        {/* 0. In-Table Felt Gold Branding: ISHAK'S DOMINO */}
+        <div className="absolute left-0 top-0 -translate-x-1/2 -translate-y-1/2 pointer-events-none select-none text-center z-0">
+          <div className="font-serif font-black tracking-[0.25em] text-4xl sm:text-6xl uppercase text-transparent bg-clip-text bg-gradient-to-b from-amber-200 via-amber-400 to-amber-600 drop-shadow-[0_2px_12px_rgba(0,0,0,0.95)] opacity-35 whitespace-nowrap">
+            ISHAK&apos;S DOMINO
+          </div>
+          <div className="text-[10px] sm:text-xs tracking-[0.45em] text-amber-400/50 font-bold uppercase mt-1">
+            ★ CLASSIC &amp; ALL FIVES ★
+          </div>
+        </div>
+
         {/* 1. Confirmed Placed Tiles */}
         {board.map((tile) => (
           <div
@@ -472,7 +482,7 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
                 </div>
               </div>
             ) : (
-              /* The 4 Placement Sides: Left, Right, Top, Bottom */
+              /* The 4 Placement Sides: Left, Right, Top, Bottom (Non-overlapping) */
               <>
                 {/* ⬅️ 1. Left Side Target */}
                 {leftMost && (
@@ -481,8 +491,8 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
                       e.stopPropagation();
                       onPlaceTile({
                         tileId: selectedTile.id,
-                        x: leftMost.x - 90,
-                        y: leftMost.y,
+                        x: 0,
+                        y: 0,
                         rotation: selectedRotation,
                         placementSide: 'left',
                       });
@@ -496,7 +506,7 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
                       activeDropZone === 'left' ? 'scale-110' : ''
                     }`}
                     style={{
-                      left: `${leftMost.x - 95}px`,
+                      left: `${leftMost.x - ((leftMost.rotation === 90 || leftMost.rotation === 270 ? 40 : 80) / 2) - 55}px`,
                       top: `${leftMost.y}px`,
                     }}
                   >
@@ -513,8 +523,8 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
                       e.stopPropagation();
                       onPlaceTile({
                         tileId: selectedTile.id,
-                        x: rightMost.x + 90,
-                        y: rightMost.y,
+                        x: 0,
+                        y: 0,
                         rotation: selectedRotation,
                         placementSide: 'right',
                       });
@@ -528,7 +538,7 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
                       activeDropZone === 'right' ? 'scale-110' : ''
                     }`}
                     style={{
-                      left: `${rightMost.x + 95}px`,
+                      left: `${rightMost.x + ((rightMost.rotation === 90 || rightMost.rotation === 270 ? 40 : 80) / 2) + 55}px`,
                       top: `${rightMost.y}px`,
                     }}
                   >
@@ -545,8 +555,8 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
                       e.stopPropagation();
                       onPlaceTile({
                         tileId: selectedTile.id,
-                        x: topMost.x,
-                        y: topMost.y - 70,
+                        x: 0,
+                        y: 0,
                         rotation: 90,
                         placementSide: 'top',
                       });
@@ -561,7 +571,7 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
                     }`}
                     style={{
                       left: `${topMost.x}px`,
-                      top: `${topMost.y - 75}px`,
+                      top: `${topMost.y - ((topMost.rotation === 90 || topMost.rotation === 270 ? 80 : 40) / 2) - 45}px`,
                     }}
                   >
                     <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-black shadow-2xl border-2 border-emerald-300 transition-all hover:scale-105 active:scale-95">
@@ -577,8 +587,8 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
                       e.stopPropagation();
                       onPlaceTile({
                         tileId: selectedTile.id,
-                        x: bottomMost.x,
-                        y: bottomMost.y + 70,
+                        x: 0,
+                        y: 0,
                         rotation: 90,
                         placementSide: 'bottom',
                       });
@@ -593,7 +603,7 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
                     }`}
                     style={{
                       left: `${bottomMost.x}px`,
-                      top: `${bottomMost.y + 75}px`,
+                      top: `${bottomMost.y + ((bottomMost.rotation === 90 || bottomMost.rotation === 270 ? 80 : 40) / 2) + 45}px`,
                     }}
                   >
                     <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-black shadow-2xl border-2 border-emerald-300 transition-all hover:scale-105 active:scale-95">

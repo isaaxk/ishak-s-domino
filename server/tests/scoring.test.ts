@@ -184,6 +184,28 @@ describe('Scoring Engine (Classic & All Fives)', () => {
     expect(score).toBe(20);
   });
 
+  it('adds all four ends in All Fives when tiles branch into Left, Right, Top, and Bottom', () => {
+    // Board with 4 branches:
+    // Center: [5|5] at (0, 0)
+    // Left: [4|5] at x = -83, y = 0, rot: 0 -> exposed left = 4
+    // Right: [5|6] at x = 83, y = 0, rot: 0 -> exposed right = 6
+    // Top: [2|5] at x = 0, y = -83, rot: 90 -> exposed top = 2
+    // Bottom: [5|3] at x = 0, y = 83, rot: 90 -> exposed bottom = 3
+    // Total open ends = 4 + 6 + 2 + 3 = 15 -> awards 15 points!
+    const board: PlacedTile[] = [
+      { id: 't-center', sideA: 5, sideB: 5, isDouble: true, x: 0, y: 0, rotation: 90, placedBy: 'p1', turnNumber: 1, stepIndex: 0 },
+      { id: 't-left', sideA: 4, sideB: 5, isDouble: false, x: -83, y: 0, rotation: 0, placedBy: 'p1', turnNumber: 1, stepIndex: 1 },
+      { id: 't-right', sideA: 5, sideB: 6, isDouble: false, x: 83, y: 0, rotation: 0, placedBy: 'p2', turnNumber: 2, stepIndex: 0 },
+      { id: 't-top', sideA: 2, sideB: 5, isDouble: false, x: 0, y: -83, rotation: 90, placedBy: 'p1', turnNumber: 3, stepIndex: 0 },
+      { id: 't-bottom', sideA: 5, sideB: 3, isDouble: false, x: 0, y: 83, rotation: 90, placedBy: 'p2', turnNumber: 4, stepIndex: 0 },
+    ];
+
+    const result = calculateAllFivesTurnScore(board);
+    expect(result.openEnds.length).toBe(4);
+    expect(result.openEndsSum).toBe(15);
+    expect(result.points).toBe(15);
+  });
+
   it('evaluates blocked round and identifies winner with lowest pip count', () => {
     const hands: Record<string, DominoTile[]> = {
       p1: [{ id: 'tile-1-1', sideA: 1, sideB: 1, totalPips: 2, isDouble: true }], // 2 pips (winner)
