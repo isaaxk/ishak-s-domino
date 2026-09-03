@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    touch-action: none;
+    background-color: #0f172a;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  #root {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+}
+
+/* Custom Domino Table styles */
+.table-felt-pattern {
+  background-color: #154734;
+  background-image: radial-gradient(#1e6349 15%, transparent 16%), radial-gradient(#103d2c 15%, transparent 16%);
+  background-size: 40px 40px;
+  background-position: 0 0, 20px 20px;
+}
+
+/* Custom scrollbars for mobile horizontal docks */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

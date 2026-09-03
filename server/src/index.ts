@@ -1,0 +1,167 @@
+import express from 'express';
+import http from 'node:http';
+import { Server } from 'socket.io';
+import cors from 'cors';
+import path from 'node:path';
+import fs from 'node:fs';
+import { DominoDatabase } from './db/database.js';
+import { RoomManager } from './sockets/room-manager.js';
+import { ClientToServerEvents, ServerToClientEvents } from './shared/types.js';
+
+const app = express();
+const port = process.env.PORT || 3001;
+
+app.use(cors({ origin: '*' }));
+app.use(express.json());
+
+const server = http.createServer(app);
+const io = new Server<ClientToServerEvents, ServerToClientEvents>(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST'],
+  },
+});
+
+const db = new DominoDatabase();
+const roomManager = new RoomManager(io, db);
+
+// Health check endpoint
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok', timestamp: Date.now() });
+});
+
+// Socket connection handling
+io.on('connection', (socket) => {
+  // 1. Room Creation
+  socket.on('room:create', ({ nickname, settings }, callback) => {
+    try {
+      const result = roomManager.createRoom(socket, nickname, settings);
+      callback({
+        success: true,
+        roomId: result.roomId,
+        sessionToken: result.sessionToken,
+        playerId: result.playerId,
+      });
+    } catch (err: any) {
+      callback({ success: false, error: err.message || 'Failed to create room' });
+    }
+  });
+
+  // 2. Room Joining / Reconnecting
+  socket.on('room:join', ({ roomId, nickname, sessionToken }, callback) => {
+    try {
+      const result = roomManager.joinRoom(socket, roomId, nickname, sessionToken);
+      callback(result);
+    } catch (err: any) {
+      callback({ success: false, error: err.message || 'Failed to join room' });
+    }
+  });
+
+  // 3. Settings Update (Host only)
+  socket.on('room:update_settings', ({ settings }, callback) => {
+    try {
+      const result = roomManager.updateSettings(socket.id, settings);
+      callback(result);
+    } catch (err: any) {
+      callback({ success: false, error: err.message });
+    }
+  });
+
+  // 4. Ready Toggle
+  socket.on('player:ready', ({ isReady }, callback) => {
+    try {
+      const result = roomManager.toggleReady(socket.id, isReady);
+      callback(result);
+    } catch (err: any) {
+      callback({ success: false, error: err.message });
+    }
+  });
+
+  // 5. Start Game (Host only)
+  socket.on('game:start', (callback) => {
+    try {
+      const result = roomManager.startGame(socket.id);
+      callback(result);
+    } catch (err: any) {
+      callback({ success: false, error: err.message });
+    }
+  });
+
+  // 6. Next Round (Host only)
+  socket.on('game:next_round', (callback) => {
+    try {
+      const result = roomManager.nextRound(socket.id);
+      callback(result);
+    } catch (err: any) {
+      callback({ success: false, error: err.message });
+    }
+  });
+
+  // 7. Place Tile (Turn staged placement)
+  socket.on('game:place_tile', ({ tileId, x, y, rotation, placementSide, attachedToId }, callback) => {
+    try {
+      const result = roomManager.placeTile(socket.id, tileId, x, y, rotation, placementSide, attachedToId);
+      callback(result);
+    } catch (err: any) {
+      callback({ success: false, error: err.message });
+    }
+  });
+
+  // 8. Undo Turn (Revert unconfirmed placements)
+  socket.on('game:undo_turn', (callback) => {
+    try {
+      const result = roomManager.undoTurn(socket.id);
+      callback(result);
+    } catch (err: any) {
+      callback({ success: false, error: err.message });
+    }
+  });
+
+  // 9. Confirm Turn (Commit placements, calculate scores, advance turn)
+  socket.on('game:confirm_turn', (callback) => {
+    try {
+      const result = roomManager.confirmTurn(socket.id);
+      callback(result);
+    } catch (err: any) {
+      callback({ success: false, error: err.message });
+    }
+  });
+
+  // 10. Draw Tile
+  socket.on('game:draw_tile', (callback) => {
+    try {
+      const result = roomManager.drawTile(socket.id);
+      callback(result);
+    } catch (err: any) {
+      callback({ success: false, error: err.message });
+    }
+  });
+
+  // 11. Pass Turn
+  socket.on('game:pass', (callback) => {
+    try {
+      const result = roomManager.passTurn(socket.id);
+      callback(result);
+    } catch (err: any) {
+      callback({ success: false, error: err.message });
+    }
+  });
+
+  // Disconnect
+  socket.on('disconnect', () => {
+    roomManager.handleDisconnect(socket.id);
+  });
+});
+
+// Production: Serve static client build if present
+const clientDistPath = path.resolve(process.cwd(), '../client/dist');
+if (fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath));
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(clientDistPath, 'index.html'));
+  });
+}
+
+server.listen(port, () => {
+  console.log(`Domino server listening on http://localhost:${port}`);
+});

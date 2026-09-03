@@ -1,0 +1,181 @@
+import { describe, it, expect } from 'vitest';
+import {
+  startNewRound,
+  stageTilePlacement,
+  undoStagedTurn,
+  confirmTurnAction,
+  passTurnAction,
+  drawTileAction,
+} from '../src/engine/game-engine.js';
+import { DEFAULT_SETTINGS, PlayerState } from '../../shared/types.js';
+
+describe('Game Engine State Machine & Physical Freedom', () => {
+  const createTestPlayers = (): PlayerState[] => [
+    {
+      id: 'player-1',
+      nickname: 'Alice',
+      isHost: true,
+      isReady: true,
+      score: 0,
+      seatIndex: 0,
+      connected: true,
+      tileCount: 0,
+    },
+    {
+      id: 'player-2',
+      nickname: 'Bob',
+      isHost: false,
+      isReady: true,
+      score: 0,
+      seatIndex: 1,
+      connected: true,
+      tileCount: 0,
+    },
+  ];
+
+  it('starts a new round and deals tiles', () => {
+    const players = createTestPlayers();
+    const session = startNewRound('ROOM-1', DEFAULT_SETTINGS, players, 1);
+
+    expect(session.state.phase).toBe('playing');
+    expect(session.state.roundNumber).toBe(1);
+    expect(session.state.players[0].tileCount).toBe(7);
+    expect(session.state.players[1].tileCount).toBe(7);
+    expect(session.boneyard.length).toBe(28 - 14);
+    expect(session.state.currentTurnPlayerId).toBeDefined();
+  });
+
+  it('allows free physical placement (e.g. [6|2] [5|5] [1|4] without rejection)', () => {
+    const players = createTestPlayers();
+    const session = startNewRound('ROOM-1', { ...DEFAULT_SETTINGS, allowFreePlacement: true }, players, 1);
+    const activePlayerId = session.state.currentTurnPlayerId!;
+
+    // Set custom hand for testing free placement
+    session.privateHands[activePlayerId] = [
+      { id: 'tile-2-6', sideA: 6, sideB: 2, totalPips: 8, isDouble: false },
+      { id: 'tile-5-5', sideA: 5, sideB: 5, totalPips: 10, isDouble: true },
+      { id: 'tile-1-4', sideA: 1, sideB: 4, totalPips: 5, isDouble: false },
+    ];
+
+    // 1. Place first tile [6|2]
+    const stage1 = stageTilePlacement(session, activePlayerId, 'tile-2-6');
+    expect(stage1.success).toBe(true);
+    expect(session.state.pendingPlacements.length).toBe(1);
+
+    const confirm1 = confirmTurnAction(session, activePlayerId);
+    expect(confirm1.success).toBe(true);
+    expect(session.state.board.length).toBe(1);
+
+    // 2. Next player turn: place non-matching [5|5] adjacent to right
+    const nextPlayerId = session.state.currentTurnPlayerId!;
+    session.privateHands[nextPlayerId] = [
+      { id: 'tile-5-5', sideA: 5, sideB: 5, totalPips: 10, isDouble: true },
+      { id: 'tile-0-1', sideA: 0, sideB: 1, totalPips: 1, isDouble: false },
+    ];
+    const stage2 = stageTilePlacement(session, nextPlayerId, 'tile-5-5', { placementSide: 'right' });
+    expect(stage2.success).toBe(true); // Must NOT reject!
+
+    const confirm2 = confirmTurnAction(session, nextPlayerId);
+    expect(confirm2.success).toBe(true);
+    expect(session.state.board.length).toBe(2);
+
+    // 3. Third placement: non-matching [1|4] adjacent to right
+    const thirdPlayerId = session.state.currentTurnPlayerId!;
+    session.privateHands[thirdPlayerId] = [
+      { id: 'tile-1-4', sideA: 1, sideB: 4, totalPips: 5, isDouble: false },
+    ];
+    const stage3 = stageTilePlacement(session, thirdPlayerId, 'tile-1-4', { placementSide: 'right' });
+    expect(stage3.success).toBe(true); // Must NOT reject!
+
+    const confirm3 = confirmTurnAction(session, thirdPlayerId);
+    expect(confirm3.success).toBe(true);
+    expect(session.state.board.length).toBe(3);
+    // Board successfully contains [6|2] [5|5] [1|4]!
+    expect(session.state.board.map((t) => t.id)).toEqual(['tile-2-6', 'tile-5-5', 'tile-1-4']);
+  });
+
+  it('supports multiple tiles placement per turn when enabled', () => {
+    const players = createTestPlayers();
+    const session = startNewRound(
+      'ROOM-1',
+      { ...DEFAULT_SETTINGS, allowMultipleTilesPerTurn: true },
+      players,
+      1
+    );
+    const activePlayerId = session.state.currentTurnPlayerId!;
+
+    session.privateHands[activePlayerId] = [
+      { id: 'tile-1-2', sideA: 1, sideB: 2, totalPips: 3, isDouble: false },
+      { id: 'tile-3-4', sideA: 3, sideB: 4, totalPips: 7, isDouble: false },
+    ];
+
+    // Stage first tile
+    const stage1 = stageTilePlacement(session, activePlayerId, 'tile-1-2');
+    expect(stage1.success).toBe(true);
+
+    // Stage second tile in the same turn
+    const stage2 = stageTilePlacement(session, activePlayerId, 'tile-3-4');
+    expect(stage2.success).toBe(true);
+    expect(session.state.pendingPlacements.length).toBe(2);
+
+    // Confirm turn commits both tiles
+    const confirm = confirmTurnAction(session, activePlayerId);
+    expect(confirm.success).toBe(true);
+    expect(session.state.board.length).toBe(2);
+    expect(session.privateHands[activePlayerId].length).toBe(0);
+  });
+
+  it('supports undoing staged unconfirmed turn', () => {
+    const players = createTestPlayers();
+    const session = startNewRound('ROOM-1', DEFAULT_SETTINGS, players, 1);
+    const activePlayerId = session.state.currentTurnPlayerId!;
+    const tileToPlay = session.privateHands[activePlayerId][0].id;
+
+    // Stage tile
+    stageTilePlacement(session, activePlayerId, tileToPlay);
+    expect(session.state.pendingPlacements.length).toBe(1);
+
+    // Undo turn
+    const undo = undoStagedTurn(session, activePlayerId);
+    expect(undo.success).toBe(true);
+    expect(session.state.pendingPlacements.length).toBe(0);
+    // Tile was not removed from hand
+    expect(session.privateHands[activePlayerId].some((t) => t.id === tileToPlay)).toBe(true);
+  });
+
+  it('ends round when a player empties their hand ("Domino!") and awards points', () => {
+    const players = createTestPlayers();
+    const session = startNewRound('ROOM-1', { ...DEFAULT_SETTINGS, gameType: 'classic' }, players, 1);
+    const activePlayerId = session.state.currentTurnPlayerId!;
+
+    // Set player to have only 1 tile left
+    session.privateHands[activePlayerId] = [
+      { id: 'tile-0-1', sideA: 0, sideB: 1, totalPips: 1, isDouble: false },
+    ];
+
+    stageTilePlacement(session, activePlayerId, 'tile-0-1');
+    const result = confirmTurnAction(session, activePlayerId);
+
+    expect(result.success).toBe(true);
+    expect(result.isRoundOver).toBe(true);
+    expect(session.state.phase).toBe('round_finished');
+    expect(session.state.roundWinnerId).toBe(activePlayerId);
+    expect(session.state.roundPointsWon).toBeGreaterThan(0);
+  });
+
+  it('ends round as blocked when all players pass consecutively', () => {
+    const players = createTestPlayers();
+    const session = startNewRound('ROOM-1', DEFAULT_SETTINGS, players, 1);
+
+    const p1 = session.state.currentTurnPlayerId!;
+    const pass1 = passTurnAction(session, p1);
+    expect(pass1.success).toBe(true);
+    expect(pass1.isRoundOver).toBe(false);
+
+    const p2 = session.state.currentTurnPlayerId!;
+    const pass2 = passTurnAction(session, p2);
+    expect(pass2.success).toBe(true);
+    expect(pass2.isRoundOver).toBe(true);
+    expect(session.state.phase).toBe('round_finished');
+  });
+});
