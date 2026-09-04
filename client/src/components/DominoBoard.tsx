@@ -10,6 +10,10 @@ import {
   ArrowRight,
   ArrowUp,
   ArrowDown,
+  CornerUpLeft,
+  CornerUpRight,
+  CornerDownLeft,
+  CornerDownRight,
   RotateCw,
   Check,
   Undo2,
@@ -32,6 +36,7 @@ interface DominoBoardProps {
     y: number;
     rotation: number;
     placementSide?: PlacementSide;
+    attachedToId?: string;
   }) => void;
   onRotatePendingTile?: (tileId: string, newRotation: number) => void;
   onConfirmTurn?: () => void;
@@ -177,6 +182,124 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
     setTouchDistance(null);
   };
 
+  const allTiles = [...board, ...pendingPlacements];
+
+  // Extremities for 4-way snap targets (Left, Right, Top, Bottom)
+  const leftMost = allTiles.length > 0 ? allTiles.reduce((prev, curr) => (curr.x < prev.x ? curr : prev), allTiles[0]) : null;
+  const rightMost = allTiles.length > 0 ? allTiles.reduce((prev, curr) => (curr.x > prev.x ? curr : prev), allTiles[0]) : null;
+  const topMost = allTiles.length > 0 ? allTiles.reduce((prev, curr) => (curr.y < prev.y ? curr : prev), allTiles[0]) : null;
+  const bottomMost = allTiles.length > 0 ? allTiles.reduce((prev, curr) => (curr.y > prev.y ? curr : prev), allTiles[0]) : null;
+
+  // Active staged pending tile (for on-tile rotation controls)
+  const activePendingTile = pendingPlacements.length > 0 ? pendingPlacements[pendingPlacements.length - 1] : null;
+
+  // Helper to find closest snap point among straight & turn placements
+  const findBestSnapTarget = (clickX: number, clickY: number) => {
+    if (allTiles.length === 0) {
+      return { side: 'free' as PlacementSide, attachedToId: undefined, rotation: selectedRotation };
+    }
+
+    const spineY = leftMost && rightMost ? (leftMost.y + rightMost.y) / 2 : (board[0]?.y ?? 0);
+    const candidates: { side: PlacementSide; dist: number; attachedToId?: string; rotation: number }[] = [];
+
+    if (leftMost) {
+      // Straight left
+      candidates.push({
+        side: 'left',
+        dist: Math.hypot(clickX - (leftMost.x - 60), clickY - leftMost.y),
+        attachedToId: leftMost.id,
+        rotation: selectedRotation,
+      });
+      // Left turn-up
+      candidates.push({
+        side: 'turn-up',
+        dist: Math.hypot(clickX - (leftMost.x - 20), clickY - (leftMost.y - 60)),
+        attachedToId: leftMost.id,
+        rotation: 90,
+      });
+      // Left turn-down
+      candidates.push({
+        side: 'turn-down',
+        dist: Math.hypot(clickX - (leftMost.x - 20), clickY - (leftMost.y + 60)),
+        attachedToId: leftMost.id,
+        rotation: 90,
+      });
+    }
+
+    if (rightMost) {
+      // Straight right
+      candidates.push({
+        side: 'right',
+        dist: Math.hypot(clickX - (rightMost.x + 60), clickY - rightMost.y),
+        attachedToId: rightMost.id,
+        rotation: selectedRotation,
+      });
+      // Right turn-up
+      candidates.push({
+        side: 'turn-up',
+        dist: Math.hypot(clickX - (rightMost.x + 20), clickY - (rightMost.y - 60)),
+        attachedToId: rightMost.id,
+        rotation: 90,
+      });
+      // Right turn-down
+      candidates.push({
+        side: 'turn-down',
+        dist: Math.hypot(clickX - (rightMost.x + 20), clickY - (rightMost.y + 60)),
+        attachedToId: rightMost.id,
+        rotation: 90,
+      });
+    }
+
+    if (topMost && (gameType === 'all-fives' || topMost.y < spineY - 20)) {
+      candidates.push({
+        side: 'top',
+        dist: Math.hypot(clickX - topMost.x, clickY - (topMost.y - 60)),
+        attachedToId: topMost.id,
+        rotation: 90,
+      });
+      candidates.push({
+        side: 'turn-left',
+        dist: Math.hypot(clickX - (topMost.x - 60), clickY - (topMost.y - 20)),
+        attachedToId: topMost.id,
+        rotation: 0,
+      });
+      candidates.push({
+        side: 'turn-right',
+        dist: Math.hypot(clickX - (topMost.x + 60), clickY - (topMost.y - 20)),
+        attachedToId: topMost.id,
+        rotation: 0,
+      });
+    }
+
+    if (bottomMost && (gameType === 'all-fives' || bottomMost.y > spineY + 20)) {
+      candidates.push({
+        side: 'bottom',
+        dist: Math.hypot(clickX - bottomMost.x, clickY - (bottomMost.y + 60)),
+        attachedToId: bottomMost.id,
+        rotation: 90,
+      });
+      candidates.push({
+        side: 'turn-left',
+        dist: Math.hypot(clickX - (bottomMost.x - 60), clickY - (bottomMost.y + 20)),
+        attachedToId: bottomMost.id,
+        rotation: 0,
+      });
+      candidates.push({
+        side: 'turn-right',
+        dist: Math.hypot(clickX - (bottomMost.x + 60), clickY - (bottomMost.y + 20)),
+        attachedToId: bottomMost.id,
+        rotation: 0,
+      });
+    }
+
+    if (candidates.length > 0) {
+      candidates.sort((a, b) => a.dist - b.dist);
+      return candidates[0];
+    }
+
+    return { side: 'right' as PlacementSide, attachedToId: undefined, rotation: selectedRotation };
+  };
+
   // Smart snap placement on clicking felt table
   const handleTableClick = (e: React.MouseEvent) => {
     if (!selectedTile || !isMyTurn || isDragging) return;
@@ -186,40 +309,14 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
     const clickX = (e.clientX - rect.left - rect.width / 2 - pan.x) / zoom;
     const clickY = (e.clientY - rect.top - rect.height / 2 - pan.y) / zoom;
 
-    // If first tile on empty table: place at (0, 0)
-    if (allTiles.length === 0) {
-      onPlaceTile({
-        tileId: selectedTile.id,
-        x: 0,
-        y: 0,
-        rotation: selectedRotation,
-        placementSide: 'free',
-      });
-      return;
-    }
-
-    // Auto-snap to the closest of the 4 road ends (Left, Right, Top, Bottom)
-    const spineY = board[0]?.y ?? 0;
-    const spineX = board[0]?.x ?? 0;
-
-    const leftDist = leftMost ? Math.hypot(clickX - (leftMost.x - 60), clickY - spineY) : Infinity;
-    const rightDist = rightMost ? Math.hypot(clickX - (rightMost.x + 60), clickY - spineY) : Infinity;
-    const topDist = topMost ? Math.hypot(clickX - spineX, clickY - (topMost.y - 60)) : Infinity;
-    const bottomDist = bottomMost ? Math.hypot(clickX - spineX, clickY - (bottomMost.y + 60)) : Infinity;
-
-    const minDist = Math.min(leftDist, rightDist, topDist, bottomDist);
-    let chosenSide: PlacementSide = 'right';
-    if (minDist === leftDist) chosenSide = 'left';
-    else if (minDist === rightDist) chosenSide = 'right';
-    else if (minDist === topDist) chosenSide = 'top';
-    else if (minDist === bottomDist) chosenSide = 'bottom';
-
+    const snap = findBestSnapTarget(clickX, clickY);
     onPlaceTile({
       tileId: selectedTile.id,
       x: 0,
       y: 0,
-      rotation: chosenSide === 'top' || chosenSide === 'bottom' ? 90 : selectedRotation,
-      placementSide: chosenSide,
+      rotation: snap.rotation,
+      placementSide: snap.side,
+      attachedToId: snap.attachedToId,
     });
   };
 
@@ -242,72 +339,41 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
     const clickX = (e.clientX - rect.left - rect.width / 2 - pan.x) / zoom;
     const clickY = (e.clientY - rect.top - rect.height / 2 - pan.y) / zoom;
 
-    // If first tile on empty table: place at (0, 0)
-    if (allTiles.length === 0) {
-      onPlaceTile({
-        tileId,
-        x: 0,
-        y: 0,
-        rotation: selectedRotation,
-        placementSide: 'free',
-      });
-      setActiveDropZone(null);
-      return;
-    }
-
-    // Auto-snap drop to the closest of the 4 road ends (Left, Right, Top, Bottom)
-    const spineY = board[0]?.y ?? 0;
-    const spineX = board[0]?.x ?? 0;
-
-    const leftDist = leftMost ? Math.hypot(clickX - (leftMost.x - 60), clickY - spineY) : Infinity;
-    const rightDist = rightMost ? Math.hypot(clickX - (rightMost.x + 60), clickY - spineY) : Infinity;
-    const topDist = topMost ? Math.hypot(clickX - spineX, clickY - (topMost.y - 60)) : Infinity;
-    const bottomDist = bottomMost ? Math.hypot(clickX - spineX, clickY - (bottomMost.y + 60)) : Infinity;
-
-    const minDist = Math.min(leftDist, rightDist, topDist, bottomDist);
-    let chosenSide: PlacementSide = 'right';
-    if (minDist === leftDist) chosenSide = 'left';
-    else if (minDist === rightDist) chosenSide = 'right';
-    else if (minDist === topDist) chosenSide = 'top';
-    else if (minDist === bottomDist) chosenSide = 'bottom';
-
+    const snap = findBestSnapTarget(clickX, clickY);
     onPlaceTile({
       tileId,
       x: 0,
       y: 0,
-      rotation: chosenSide === 'top' || chosenSide === 'bottom' ? 90 : selectedRotation,
-      placementSide: chosenSide,
+      rotation: snap.rotation,
+      placementSide: snap.side,
+      attachedToId: snap.attachedToId,
     });
     setActiveDropZone(null);
   };
 
-  const handleDropOnSide = (e: React.DragEvent, side: PlacementSide) => {
+  const handleDropOnSide = (
+    e: React.DragEvent,
+    side: PlacementSide,
+    attachedToId?: string,
+    forcedRotation?: number
+  ) => {
     if (!isMyTurn) return;
     e.preventDefault();
     e.stopPropagation();
     const tileId = e.dataTransfer.getData('text/plain') || selectedTile?.id;
     if (!tileId) return;
 
+    const rot = forcedRotation !== undefined ? forcedRotation : (side === 'top' || side === 'bottom' ? 90 : selectedRotation);
     onPlaceTile({
       tileId,
       x: 0,
       y: 0,
-      rotation: side === 'top' || side === 'bottom' ? 90 : selectedRotation,
+      rotation: rot,
       placementSide: side,
+      attachedToId,
     });
     setActiveDropZone(null);
   };
-
-  const allTiles = [...board, ...pendingPlacements];
-
-  // Extremities for 4-way snap targets (Left, Right, Top, Bottom)
-  const leftMost = allTiles.length > 0 ? allTiles.reduce((prev, curr) => (curr.x < prev.x ? curr : prev), allTiles[0]) : null;
-  const rightMost = allTiles.length > 0 ? allTiles.reduce((prev, curr) => (curr.x > prev.x ? curr : prev), allTiles[0]) : null;
-  const topMost = allTiles.length > 0 ? allTiles.reduce((prev, curr) => (curr.y < prev.y ? curr : prev), allTiles[0]) : null;
-  const bottomMost = allTiles.length > 0 ? allTiles.reduce((prev, curr) => (curr.y > prev.y ? curr : prev), allTiles[0]) : null;
-
-  // Active staged pending tile (for on-tile rotation controls)
-  const activePendingTile = pendingPlacements.length > 0 ? pendingPlacements[pendingPlacements.length - 1] : null;
 
   return (
     <div
@@ -545,131 +611,299 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
             ) : (
               /* The 4 Placement Sides: Left, Right, Top, Bottom (Non-overlapping) */
               <>
-                {/* ⬅️ 1. Left Side Target */}
+                {/* ⬅️ 1. Left Side Target & Turns */}
                 {leftMost && (
                   <div
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onPlaceTile({
-                        tileId: selectedTile.id,
-                        x: 0,
-                        y: 0,
-                        rotation: selectedRotation,
-                        placementSide: 'left',
-                      });
-                    }}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      setActiveDropZone('left');
-                    }}
-                    onDrop={(e) => handleDropOnSide(e, 'left')}
-                    className={`absolute -translate-x-1/2 -translate-y-1/2 z-30 cursor-pointer pointer-events-auto transition-all ${
-                      activeDropZone === 'left' ? 'scale-110' : ''
-                    }`}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-auto flex flex-col items-center gap-1.5"
                     style={{
-                      left: `${leftMost.x - ((leftMost.rotation === 90 || leftMost.rotation === 270 ? 40 : 80) / 2) - 55}px`,
+                      left: `${leftMost.x - ((leftMost.rotation === 90 || leftMost.rotation === 270 ? 40 : 80) / 2) - 65}px`,
                       top: `${leftMost.y}px`,
                     }}
                   >
-                    <button className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-2xl border-2 border-emerald-300 transition-all hover:scale-105 active:scale-95">
-                      <ArrowLeft size={16} /> Put Left
+                    {/* Straight Left */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onPlaceTile({
+                          tileId: selectedTile.id,
+                          x: 0,
+                          y: 0,
+                          rotation: selectedRotation,
+                          placementSide: 'left',
+                          attachedToId: leftMost.id,
+                        });
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setActiveDropZone('left');
+                      }}
+                      onDrop={(e) => handleDropOnSide(e, 'left', leftMost.id, selectedRotation)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-2xl border-2 border-emerald-300 transition-all hover:scale-105 active:scale-95 ${
+                        activeDropZone === 'left' ? 'scale-110 ring-2 ring-emerald-300' : ''
+                      }`}
+                    >
+                      <ArrowLeft size={15} /> Put Left
                     </button>
+
+                    {/* Left Corner / Turn Options */}
+                    <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-teal-500/40 shadow-xl backdrop-blur">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onPlaceTile({
+                            tileId: selectedTile.id,
+                            x: 0,
+                            y: 0,
+                            rotation: 90,
+                            placementSide: 'turn-up',
+                            attachedToId: leftMost.id,
+                          });
+                        }}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-[11px] font-bold shadow border border-teal-400/50 transition-all hover:scale-105 active:scale-95"
+                        title="Turn Up (Snake corner)"
+                      >
+                        <CornerUpLeft size={13} /> ↰ Up
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onPlaceTile({
+                            tileId: selectedTile.id,
+                            x: 0,
+                            y: 0,
+                            rotation: 90,
+                            placementSide: 'turn-down',
+                            attachedToId: leftMost.id,
+                          });
+                        }}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-[11px] font-bold shadow border border-teal-400/50 transition-all hover:scale-105 active:scale-95"
+                        title="Turn Down (Snake corner)"
+                      >
+                        <CornerDownLeft size={13} /> ↲ Down
+                      </button>
+                    </div>
                   </div>
                 )}
 
-                {/* ➡️ 2. Right Side Target */}
+                {/* ➡️ 2. Right Side Target & Turns */}
                 {rightMost && (
                   <div
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onPlaceTile({
-                        tileId: selectedTile.id,
-                        x: 0,
-                        y: 0,
-                        rotation: selectedRotation,
-                        placementSide: 'right',
-                      });
-                    }}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      setActiveDropZone('right');
-                    }}
-                    onDrop={(e) => handleDropOnSide(e, 'right')}
-                    className={`absolute -translate-x-1/2 -translate-y-1/2 z-30 cursor-pointer pointer-events-auto transition-all ${
-                      activeDropZone === 'right' ? 'scale-110' : ''
-                    }`}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-auto flex flex-col items-center gap-1.5"
                     style={{
-                      left: `${rightMost.x + ((rightMost.rotation === 90 || rightMost.rotation === 270 ? 40 : 80) / 2) + 55}px`,
+                      left: `${rightMost.x + ((rightMost.rotation === 90 || rightMost.rotation === 270 ? 40 : 80) / 2) + 65}px`,
                       top: `${rightMost.y}px`,
                     }}
                   >
-                    <button className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-2xl border-2 border-emerald-300 transition-all hover:scale-105 active:scale-95">
-                      Put Right <ArrowRight size={16} />
+                    {/* Straight Right */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onPlaceTile({
+                          tileId: selectedTile.id,
+                          x: 0,
+                          y: 0,
+                          rotation: selectedRotation,
+                          placementSide: 'right',
+                          attachedToId: rightMost.id,
+                        });
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setActiveDropZone('right');
+                      }}
+                      onDrop={(e) => handleDropOnSide(e, 'right', rightMost.id, selectedRotation)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-2xl border-2 border-emerald-300 transition-all hover:scale-105 active:scale-95 ${
+                        activeDropZone === 'right' ? 'scale-110 ring-2 ring-emerald-300' : ''
+                      }`}
+                    >
+                      Put Right <ArrowRight size={15} />
                     </button>
+
+                    {/* Right Corner / Turn Options */}
+                    <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-teal-500/40 shadow-xl backdrop-blur">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onPlaceTile({
+                            tileId: selectedTile.id,
+                            x: 0,
+                            y: 0,
+                            rotation: 90,
+                            placementSide: 'turn-up',
+                            attachedToId: rightMost.id,
+                          });
+                        }}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-[11px] font-bold shadow border border-teal-400/50 transition-all hover:scale-105 active:scale-95"
+                        title="Turn Up (Snake corner)"
+                      >
+                        <CornerUpRight size={13} /> ↱ Up
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onPlaceTile({
+                            tileId: selectedTile.id,
+                            x: 0,
+                            y: 0,
+                            rotation: 90,
+                            placementSide: 'turn-down',
+                            attachedToId: rightMost.id,
+                          });
+                        }}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-[11px] font-bold shadow border border-teal-400/50 transition-all hover:scale-105 active:scale-95"
+                        title="Turn Down (Snake corner)"
+                      >
+                        <CornerDownRight size={13} /> ↳ Down
+                      </button>
+                    </div>
                   </div>
                 )}
 
-                {/* ⬆️ 3. Top Side Target */}
-                {topMost && (
+                {/* ⬆️ 3. Top Side Target & Turns */}
+                {topMost && (gameType === 'all-fives' || topMost.y < ((leftMost?.y ?? 0) + (rightMost?.y ?? 0)) / 2 - 20) && (
                   <div
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onPlaceTile({
-                        tileId: selectedTile.id,
-                        x: 0,
-                        y: 0,
-                        rotation: 90,
-                        placementSide: 'top',
-                      });
-                    }}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      setActiveDropZone('top');
-                    }}
-                    onDrop={(e) => handleDropOnSide(e, 'top')}
-                    className={`absolute -translate-x-1/2 -translate-y-1/2 z-30 cursor-pointer pointer-events-auto transition-all ${
-                      activeDropZone === 'top' ? 'scale-110' : ''
-                    }`}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-auto flex flex-col items-center gap-1.5"
                     style={{
                       left: `${topMost.x}px`,
-                      top: `${topMost.y - ((topMost.rotation === 90 || topMost.rotation === 270 ? 80 : 40) / 2) - 45}px`,
+                      top: `${topMost.y - ((topMost.rotation === 90 || topMost.rotation === 270 ? 80 : 40) / 2) - 55}px`,
                     }}
                   >
-                    <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-black shadow-2xl border-2 border-emerald-300 transition-all hover:scale-105 active:scale-95">
-                      <ArrowUp size={16} /> Put Top
+                    {/* Straight Top */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onPlaceTile({
+                          tileId: selectedTile.id,
+                          x: 0,
+                          y: 0,
+                          rotation: 90,
+                          placementSide: 'top',
+                          attachedToId: topMost.id,
+                        });
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setActiveDropZone('top');
+                      }}
+                      onDrop={(e) => handleDropOnSide(e, 'top', topMost.id, 90)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-black shadow-2xl border-2 border-emerald-300 transition-all hover:scale-105 active:scale-95 ${
+                        activeDropZone === 'top' ? 'scale-110 ring-2 ring-emerald-300' : ''
+                      }`}
+                    >
+                      <ArrowUp size={15} /> Put Top
                     </button>
+
+                    {/* Top Corner / Turn Options */}
+                    <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-teal-500/40 shadow-xl backdrop-blur">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onPlaceTile({
+                            tileId: selectedTile.id,
+                            x: 0,
+                            y: 0,
+                            rotation: 0,
+                            placementSide: 'turn-left',
+                            attachedToId: topMost.id,
+                          });
+                        }}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-[11px] font-bold shadow border border-teal-400/50 transition-all hover:scale-105 active:scale-95"
+                        title="Turn Left (Snake corner)"
+                      >
+                        <CornerUpLeft size={13} /> ↰ Left
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onPlaceTile({
+                            tileId: selectedTile.id,
+                            x: 0,
+                            y: 0,
+                            rotation: 0,
+                            placementSide: 'turn-right',
+                            attachedToId: topMost.id,
+                          });
+                        }}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-[11px] font-bold shadow border border-teal-400/50 transition-all hover:scale-105 active:scale-95"
+                        title="Turn Right (Snake corner)"
+                      >
+                        <CornerUpRight size={13} /> ↱ Right
+                      </button>
+                    </div>
                   </div>
                 )}
 
-                {/* ⬇️ 4. Bottom Side Target */}
-                {bottomMost && (
+                {/* ⬇️ 4. Bottom Side Target & Turns */}
+                {bottomMost && (gameType === 'all-fives' || bottomMost.y > ((leftMost?.y ?? 0) + (rightMost?.y ?? 0)) / 2 + 20) && (
                   <div
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onPlaceTile({
-                        tileId: selectedTile.id,
-                        x: 0,
-                        y: 0,
-                        rotation: 90,
-                        placementSide: 'bottom',
-                      });
-                    }}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      setActiveDropZone('bottom');
-                    }}
-                    onDrop={(e) => handleDropOnSide(e, 'bottom')}
-                    className={`absolute -translate-x-1/2 -translate-y-1/2 z-30 cursor-pointer pointer-events-auto transition-all ${
-                      activeDropZone === 'bottom' ? 'scale-110' : ''
-                    }`}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-auto flex flex-col items-center gap-1.5"
                     style={{
                       left: `${bottomMost.x}px`,
-                      top: `${bottomMost.y + ((bottomMost.rotation === 90 || bottomMost.rotation === 270 ? 80 : 40) / 2) + 45}px`,
+                      top: `${bottomMost.y + ((bottomMost.rotation === 90 || bottomMost.rotation === 270 ? 80 : 40) / 2) + 55}px`,
                     }}
                   >
-                    <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-black shadow-2xl border-2 border-emerald-300 transition-all hover:scale-105 active:scale-95">
-                      Put Bottom <ArrowDown size={16} />
+                    {/* Straight Bottom */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onPlaceTile({
+                          tileId: selectedTile.id,
+                          x: 0,
+                          y: 0,
+                          rotation: 90,
+                          placementSide: 'bottom',
+                          attachedToId: bottomMost.id,
+                        });
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setActiveDropZone('bottom');
+                      }}
+                      onDrop={(e) => handleDropOnSide(e, 'bottom', bottomMost.id, 90)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-black shadow-2xl border-2 border-emerald-300 transition-all hover:scale-105 active:scale-95 ${
+                        activeDropZone === 'bottom' ? 'scale-110 ring-2 ring-emerald-300' : ''
+                      }`}
+                    >
+                      Put Bottom <ArrowDown size={15} />
                     </button>
+
+                    {/* Bottom Corner / Turn Options */}
+                    <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-teal-500/40 shadow-xl backdrop-blur">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onPlaceTile({
+                            tileId: selectedTile.id,
+                            x: 0,
+                            y: 0,
+                            rotation: 0,
+                            placementSide: 'turn-left',
+                            attachedToId: bottomMost.id,
+                          });
+                        }}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-[11px] font-bold shadow border border-teal-400/50 transition-all hover:scale-105 active:scale-95"
+                        title="Turn Left (Snake corner)"
+                      >
+                        <CornerDownLeft size={13} /> ↲ Left
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onPlaceTile({
+                            tileId: selectedTile.id,
+                            x: 0,
+                            y: 0,
+                            rotation: 0,
+                            placementSide: 'turn-right',
+                            attachedToId: bottomMost.id,
+                          });
+                        }}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-[11px] font-bold shadow border border-teal-400/50 transition-all hover:scale-105 active:scale-95"
+                        title="Turn Right (Snake corner)"
+                      >
+                        <CornerDownRight size={13} /> ↳ Right
+                      </button>
+                    </div>
                   </div>
                 )}
               </>
@@ -698,7 +932,7 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 pointer-events-none animate-fadeIn">
           <div className="px-4 py-2 rounded-full bg-neutral-900/90 border border-emerald-500/50 text-emerald-300 text-xs font-bold shadow-2xl text-center backdrop-blur flex items-center gap-2">
             <Sparkles size={14} className="text-amber-400" />
-            Drag & drop or tap: Left, Right, Top, Bottom, or anywhere on table
+            Drag & drop or tap: Left, Right, Top, Bottom, or Turns (↰ ↱ ↲ ↳)
           </div>
         </div>
       )}

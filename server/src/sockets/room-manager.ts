@@ -7,6 +7,7 @@ import {
   PlayerState,
   DEFAULT_SETTINGS,
   DominoTile,
+  PlacementSide,
   ClientToServerEvents,
   ServerToClientEvents,
 } from '../shared/types.js';
@@ -250,10 +251,6 @@ export class RoomManager {
     const player = session.state.players.find((p) => p.id === meta.playerId);
     if (!player || !player.isHost) return { success: false, error: 'Only the host can adjust game settings' };
 
-    if (session.state.phase !== 'waiting_players' && session.state.phase !== 'waiting_ready') {
-      return { success: false, error: 'Settings cannot be modified while game is running' };
-    }
-
     const merged = { ...session.state.settings, ...newSettings };
 
     // Validate config compatibility with domino set (reserve is 0 for initial deal)
@@ -269,7 +266,11 @@ export class RoomManager {
     }
 
     session.state.settings = merged;
-    this.db.saveRoom(meta.roomId, meta.playerId, merged, 'waiting');
+    const dbStatus = session.state.phase === 'waiting_players' || session.state.phase === 'waiting_ready' ? 'waiting' : 'playing';
+    this.db.saveRoom(meta.roomId, meta.playerId, merged, dbStatus);
+    if (session.state.phase !== 'waiting_players' && session.state.phase !== 'waiting_ready') {
+      this.db.saveGameState(meta.roomId, session.state, session.privateHands, session.boneyard);
+    }
     this.broadcastRoomState(meta.roomId);
 
     return { success: true };
@@ -643,7 +644,7 @@ export class RoomManager {
     x: number,
     y: number,
     rotation: number,
-    placementSide?: 'left' | 'right' | 'top' | 'bottom' | 'free',
+    placementSide?: PlacementSide,
     attachedToId?: string
   ): { success: boolean; error?: string } {
     const meta = this.socketToPlayer.get(socketId);

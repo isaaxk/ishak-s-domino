@@ -220,12 +220,15 @@ export function stageTilePlacement(
 
     if (side !== 'free' && state.board.length > 0) {
       // Re-calculate non-overlapping snapped coordinates based on new orientation
+      const attachedToId = options.attachedToId || current.attachedToId;
       const recalculated = placeTileOnBoard(state.board, tile, playerId, 0, 0, {
         placementSide: side,
         rotation: newRot,
+        attachedToId,
       });
       current.x = recalculated.placedTile.x;
       current.y = recalculated.placedTile.y;
+      current.attachedToId = recalculated.placedTile.attachedToId;
     } else if (options.x !== undefined && options.y !== undefined) {
       current.x = options.x;
       current.y = options.y;

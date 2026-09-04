@@ -125,9 +125,11 @@ export const StatusBar: React.FC<StatusBarProps> = ({
               <span>{p.nickname} {isMe && '(You)'}</span>
               <span className="text-slate-400">|</span>
               <span className="font-bold text-amber-300">{p.score} pts</span>
-              <span className="text-[11px] px-1.5 py-0.2 rounded-full bg-black/40 text-slate-300">
-                {p.tileCount} 🀱
-              </span>
+              {(settings.showTileCounts !== false || isMe) && (
+                <span className="text-[11px] px-1.5 py-0.2 rounded-full bg-black/40 text-slate-300">
+                  {p.tileCount} 🀱
+                </span>
+              )}
 
               {/* Manager Kick Button during game */}
               {isHost && !isMe && onKickPlayer && (

@@ -123,139 +123,186 @@ export function placeTileOnBoard(
     };
   }
 
-  // Filter tiles belonging to the horizontal spine vs vertical spine
-  const horizontalTiles = currentBoard.filter((t) => Math.abs(t.y - spineY) < 25);
-  const verticalTiles = currentBoard.filter((t) => Math.abs(t.x - spineX) < 25);
+  // Find board extremities
+  const leftMost = currentBoard.reduce((prev, curr) => (curr.x < prev.x ? curr : prev), currentBoard[0]);
+  const rightMost = currentBoard.reduce((prev, curr) => (curr.x > prev.x ? curr : prev), currentBoard[0]);
+  const topMost = currentBoard.reduce((prev, curr) => (curr.y < prev.y ? curr : prev), currentBoard[0]);
+  const bottomMost = currentBoard.reduce((prev, curr) => (curr.y > prev.y ? curr : prev), currentBoard[0]);
 
-  // Automatic Left / Right / Top / Bottom placement with exact laser-straight alignment
+  // Determine base attachment tile: use attachedToId if specified, or pick corresponding extremity
+  let baseTile: PlacedTile;
+  if (options.attachedToId) {
+    baseTile = currentBoard.find((t) => t.id === options.attachedToId) || rightMost;
+  } else {
+    switch (placementSide) {
+      case 'left':
+        baseTile = leftMost;
+        break;
+      case 'top':
+      case 'turn-left':
+      case 'turn-right':
+        baseTile = topMost;
+        break;
+      case 'bottom':
+        baseTile = bottomMost;
+        break;
+      case 'turn-up':
+      case 'turn-down':
+        baseTile = rightMost;
+        break;
+      case 'right':
+      default:
+        baseTile = rightMost;
+        break;
+    }
+  }
+
+  const isBaseVertical = baseTile.rotation === 90 || baseTile.rotation === 270;
+  const baseDim = getTileDimensions(baseTile.rotation);
+
+  let targetX = baseTile.x;
+  let targetY = baseTile.y;
+  let rot = rotation;
+
   if (placementSide === 'left') {
-    const leftMost = horizontalTiles.length > 0
-      ? horizontalTiles.reduce((prev, curr) => (curr.x < prev.x ? curr : prev), horizontalTiles[0])
-      : currentBoard.reduce((prev, curr) => (curr.x < prev.x ? curr : prev), currentBoard[0]);
-
-    const rot = rotation !== undefined ? rotation : (tile.isDouble ? 90 : 0);
-    const baseDim = getTileDimensions(leftMost.rotation);
+    if (rot === undefined) {
+      rot = tile.isDouble ? 90 : 0;
+    }
     const targetDim = getTileDimensions(rot);
-
-    // Laser-aligned along spineY, adjacent to leftMost
-    const targetX = leftMost.x - (baseDim.width / 2) - TILE_GAP - (targetDim.width / 2);
-    const targetY = spineY;
-
-    const placedTile: PlacedTile = {
-      id: tile.id,
-      sideA: tile.sideA,
-      sideB: tile.sideB,
-      isDouble: tile.isDouble,
-      x: targetX,
-      y: targetY,
-      rotation: rot,
-      placedBy: playerId,
-      turnNumber,
-      stepIndex,
-      placementSide: 'left',
-      attachedToId: leftMost.id,
-    };
-
-    return {
-      placedTile,
-      newBoard: [placedTile, ...currentBoard],
-    };
+    targetX = baseTile.x - (baseDim.width / 2) - TILE_GAP - (targetDim.width / 2);
+    targetY = baseTile.y;
+  } else if (placementSide === 'right') {
+    if (rot === undefined) {
+      rot = tile.isDouble ? 90 : 0;
+    }
+    const targetDim = getTileDimensions(rot);
+    targetX = baseTile.x + (baseDim.width / 2) + TILE_GAP + (targetDim.width / 2);
+    targetY = baseTile.y;
   } else if (placementSide === 'top') {
-    const topMost = verticalTiles.length > 0
-      ? verticalTiles.reduce((prev, curr) => (curr.y < prev.y ? curr : prev), verticalTiles[0])
-      : currentBoard.reduce((prev, curr) => (curr.y < prev.y ? curr : prev), currentBoard[0]);
-
-    const rot = rotation !== undefined ? rotation : 90;
-    const baseDim = getTileDimensions(topMost.rotation);
+    if (rot === undefined) {
+      rot = tile.isDouble ? 0 : 90;
+    }
     const targetDim = getTileDimensions(rot);
-
-    // Laser-aligned along spineX, adjacent to topMost
-    const targetX = spineX;
-    const targetY = topMost.y - (baseDim.height / 2) - TILE_GAP - (targetDim.height / 2);
-
-    const placedTile: PlacedTile = {
-      id: tile.id,
-      sideA: tile.sideA,
-      sideB: tile.sideB,
-      isDouble: tile.isDouble,
-      x: targetX,
-      y: targetY,
-      rotation: rot,
-      placedBy: playerId,
-      turnNumber,
-      stepIndex,
-      placementSide: 'top',
-      attachedToId: topMost.id,
-    };
-
-    return {
-      placedTile,
-      newBoard: [...currentBoard, placedTile],
-    };
+    targetX = baseTile.x;
+    targetY = baseTile.y - (baseDim.height / 2) - TILE_GAP - (targetDim.height / 2);
   } else if (placementSide === 'bottom') {
-    const bottomMost = verticalTiles.length > 0
-      ? verticalTiles.reduce((prev, curr) => (curr.y > prev.y ? curr : prev), verticalTiles[0])
-      : currentBoard.reduce((prev, curr) => (curr.y > prev.y ? curr : prev), currentBoard[0]);
-
-    const rot = rotation !== undefined ? rotation : 90;
-    const baseDim = getTileDimensions(bottomMost.rotation);
+    if (rot === undefined) {
+      rot = tile.isDouble ? 0 : 90;
+    }
     const targetDim = getTileDimensions(rot);
-
-    // Laser-aligned along spineX, adjacent to bottomMost
-    const targetX = spineX;
-    const targetY = bottomMost.y + (baseDim.height / 2) + TILE_GAP + (targetDim.height / 2);
-
-    const placedTile: PlacedTile = {
-      id: tile.id,
-      sideA: tile.sideA,
-      sideB: tile.sideB,
-      isDouble: tile.isDouble,
-      x: targetX,
-      y: targetY,
-      rotation: rot,
-      placedBy: playerId,
-      turnNumber,
-      stepIndex,
-      placementSide: 'bottom',
-      attachedToId: bottomMost.id,
-    };
-
-    return {
-      placedTile,
-      newBoard: [...currentBoard, placedTile],
-    };
+    targetX = baseTile.x;
+    targetY = baseTile.y + (baseDim.height / 2) + TILE_GAP + (targetDim.height / 2);
+  } else if (placementSide === 'turn-up') {
+    // 90° Turn Upwards (Snake / Corner)
+    if (rot === undefined) {
+      rot = 90; // vertical tile
+    }
+    const targetDim = getTileDimensions(rot);
+    if (!isBaseVertical) {
+      // Base tile is horizontal: align new vertical tile above the exposed half
+      let isLeftEnd = false;
+      if (leftMost.id !== rightMost.id) {
+        isLeftEnd = baseTile.id === leftMost.id;
+      } else if (options.x !== undefined && options.x < baseTile.x) {
+        isLeftEnd = true;
+      }
+      targetX = isLeftEnd ? baseTile.x - 20 : baseTile.x + 20;
+      targetY = baseTile.y - (baseDim.height / 2) - TILE_GAP - (targetDim.height / 2);
+    } else {
+      // Base tile is already vertical: continue straight up
+      targetX = baseTile.x;
+      targetY = baseTile.y - (baseDim.height / 2) - TILE_GAP - (targetDim.height / 2);
+    }
+  } else if (placementSide === 'turn-down') {
+    // 90° Turn Downwards (Snake / Corner)
+    if (rot === undefined) {
+      rot = 90; // vertical tile
+    }
+    const targetDim = getTileDimensions(rot);
+    if (!isBaseVertical) {
+      // Base tile is horizontal: align new vertical tile below the exposed half
+      let isLeftEnd = false;
+      if (leftMost.id !== rightMost.id) {
+        isLeftEnd = baseTile.id === leftMost.id;
+      } else if (options.x !== undefined && options.x < baseTile.x) {
+        isLeftEnd = true;
+      }
+      targetX = isLeftEnd ? baseTile.x - 20 : baseTile.x + 20;
+      targetY = baseTile.y + (baseDim.height / 2) + TILE_GAP + (targetDim.height / 2);
+    } else {
+      // Base tile is already vertical: continue straight down
+      targetX = baseTile.x;
+      targetY = baseTile.y + (baseDim.height / 2) + TILE_GAP + (targetDim.height / 2);
+    }
+  } else if (placementSide === 'turn-left') {
+    // 90° Turn Leftwards (Snake / Corner from vertical road)
+    if (rot === undefined) {
+      rot = 0; // horizontal tile
+    }
+    const targetDim = getTileDimensions(rot);
+    if (isBaseVertical) {
+      // Base tile is vertical: align new horizontal tile to the left of the exposed half
+      let isBottomEnd = false;
+      if (topMost.id !== bottomMost.id) {
+        isBottomEnd = baseTile.id === bottomMost.id;
+      } else if (options.y !== undefined && options.y > baseTile.y) {
+        isBottomEnd = true;
+      }
+      targetY = isBottomEnd ? baseTile.y + 20 : baseTile.y - 20;
+      targetX = baseTile.x - (baseDim.width / 2) - TILE_GAP - (targetDim.width / 2);
+    } else {
+      // Base tile is already horizontal: continue straight left
+      targetX = baseTile.x - (baseDim.width / 2) - TILE_GAP - (targetDim.width / 2);
+      targetY = baseTile.y;
+    }
+  } else if (placementSide === 'turn-right') {
+    // 90° Turn Rightwards (Snake / Corner from vertical road)
+    if (rot === undefined) {
+      rot = 0; // horizontal tile
+    }
+    const targetDim = getTileDimensions(rot);
+    if (isBaseVertical) {
+      // Base tile is vertical: align new horizontal tile to the right of the exposed half
+      let isBottomEnd = false;
+      if (topMost.id !== bottomMost.id) {
+        isBottomEnd = baseTile.id === bottomMost.id;
+      } else if (options.y !== undefined && options.y > baseTile.y) {
+        isBottomEnd = true;
+      }
+      targetY = isBottomEnd ? baseTile.y + 20 : baseTile.y - 20;
+      targetX = baseTile.x + (baseDim.width / 2) + TILE_GAP + (targetDim.width / 2);
+    } else {
+      // Base tile is already horizontal: continue straight right
+      targetX = baseTile.x + (baseDim.width / 2) + TILE_GAP + (targetDim.width / 2);
+      targetY = baseTile.y;
+    }
   } else {
     // Default right attachment
-    const rightMost = horizontalTiles.length > 0
-      ? horizontalTiles.reduce((prev, curr) => (curr.x > prev.x ? curr : prev), horizontalTiles[0])
-      : currentBoard.reduce((prev, curr) => (curr.x > prev.x ? curr : prev), currentBoard[0]);
-
-    const rot = rotation !== undefined ? rotation : (tile.isDouble ? 90 : 0);
-    const baseDim = getTileDimensions(rightMost.rotation);
+    if (rot === undefined) {
+      rot = tile.isDouble ? 90 : 0;
+    }
     const targetDim = getTileDimensions(rot);
-
-    // Laser-aligned along spineY, adjacent to rightMost
-    const targetX = rightMost.x + (baseDim.width / 2) + TILE_GAP + (targetDim.width / 2);
-    const targetY = spineY;
-
-    const placedTile: PlacedTile = {
-      id: tile.id,
-      sideA: tile.sideA,
-      sideB: tile.sideB,
-      isDouble: tile.isDouble,
-      x: targetX,
-      y: targetY,
-      rotation: rot,
-      placedBy: playerId,
-      turnNumber,
-      stepIndex,
-      placementSide: 'right',
-      attachedToId: rightMost.id,
-    };
-
-    return {
-      placedTile,
-      newBoard: [...currentBoard, placedTile],
-    };
+    targetX = baseTile.x + (baseDim.width / 2) + TILE_GAP + (targetDim.width / 2);
+    targetY = baseTile.y;
   }
+
+  const placedTile: PlacedTile = {
+    id: tile.id,
+    sideA: tile.sideA,
+    sideB: tile.sideB,
+    isDouble: tile.isDouble,
+    x: targetX,
+    y: targetY,
+    rotation: rot,
+    placedBy: playerId,
+    turnNumber,
+    stepIndex,
+    placementSide,
+    attachedToId: baseTile.id,
+  };
+
+  return {
+    placedTile,
+    newBoard: [...currentBoard, placedTile],
+  };
 }

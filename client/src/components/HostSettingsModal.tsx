@@ -17,6 +17,12 @@ export const HostSettingsModal: React.FC<HostSettingsModalProps> = ({
 }) => {
   const [form, setForm] = useState<GameSettings>({ ...settings });
 
+  React.useEffect(() => {
+    if (isOpen) {
+      setForm({ ...settings });
+    }
+  }, [isOpen, settings]);
+
   if (!isOpen) return null;
 
   // Max tiles available in set
@@ -284,6 +290,23 @@ export const HostSettingsModal: React.FC<HostSettingsModalProps> = ({
                 <option value="rounds-limit">Fixed Rounds Limit</option>
               </select>
             </div>
+          </div>
+
+          {/* 9. Tile Count Visibility */}
+          <div className="flex items-center justify-between p-3 rounded-xl bg-slate-800/80 border border-slate-700">
+            <div className="flex flex-col pr-2">
+              <span className="font-semibold text-slate-200 text-sm">Show Player Tile Counts</span>
+              <span className="text-xs text-slate-400">Display remaining domino counts for all players (Default: ON)</span>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
+              <input
+                type="checkbox"
+                checked={form.showTileCounts ?? true}
+                onChange={(e) => setForm({ ...form, showTileCounts: e.target.checked })}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+            </label>
           </div>
         </div>
 

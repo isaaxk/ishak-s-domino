@@ -2,7 +2,16 @@ export type DominoSetType = 'double-6' | 'double-7' | 'double-8' | 'double-9';
 export type GameType = 'classic' | 'all-fives';
 export type StartingTileRule = 'free-starter' | 'random' | 'host-selects' | 'specific-tile' | 'highest-double' | 'highest-tile' | 'previous-winner';
 export type EndGameCondition = 'target-score' | 'rounds-limit';
-export type PlacementSide = 'left' | 'right' | 'top' | 'bottom' | 'free';
+export type PlacementSide =
+  | 'left'
+  | 'right'
+  | 'top'
+  | 'bottom'
+  | 'turn-up'
+  | 'turn-down'
+  | 'turn-left'
+  | 'turn-right'
+  | 'free';
 
 export interface GameSettings {
   dominoSet: DominoSetType;
@@ -17,6 +26,7 @@ export interface GameSettings {
   protectedBoneyardTiles: number; // minimum tiles left in boneyard that cannot be drawn (traditional draw rule, e.g. 2 or 0)
   allowFreePlacement: boolean; // Simulates physical domino table freedom (e.g. [6|2] [5|5] [1|4])
   allowMultipleTilesPerTurn: boolean;
+  showTileCounts: boolean; // Controls whether remaining domino counts for each player are visible
   targetScore: number; // e.g. 100 or 150 points
   endGameCondition: EndGameCondition;
   maxRounds: number;
@@ -35,6 +45,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   protectedBoneyardTiles: 2,
   allowFreePlacement: true, // Physical table freedom enabled
   allowMultipleTilesPerTurn: false,
+  showTileCounts: true, // Activated by default
   targetScore: 100,
   endGameCondition: 'target-score',
   maxRounds: 5,

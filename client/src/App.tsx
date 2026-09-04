@@ -320,6 +320,7 @@ export function App() {
     y: number;
     rotation: number;
     placementSide?: PlacementSide;
+    attachedToId?: string;
   }) => {
     socket.emit(
       'game:place_tile',
@@ -329,6 +330,7 @@ export function App() {
         y: placement.y,
         rotation: placement.rotation,
         placementSide: placement.placementSide,
+        attachedToId: placement.attachedToId,
       },
       (res) => {
         if (res.success) {
