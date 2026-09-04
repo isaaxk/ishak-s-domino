@@ -10,6 +10,7 @@ interface PlayerHandDockProps {
   selectedRotation: number;
   isMyTurn: boolean;
   canChangeLastMove?: boolean;
+  isFreeStarterWaiting?: boolean;
   currentTurnPlayerName: string;
   boneyardCount: number;
   protectedBoneyardCount: number;
@@ -33,6 +34,7 @@ export const PlayerHandDock: React.FC<PlayerHandDockProps> = ({
   selectedRotation,
   isMyTurn,
   canChangeLastMove = false,
+  isFreeStarterWaiting = false,
   currentTurnPlayerName,
   boneyardCount,
   protectedBoneyardCount,
@@ -48,7 +50,7 @@ export const PlayerHandDock: React.FC<PlayerHandDockProps> = ({
   onDrawTile,
   onPassTurn,
 }) => {
-  const canDraw = allowDrawing && boneyardCount > protectedBoneyardCount && pendingPlacements.length === 0;
+  const canDraw = allowDrawing && boneyardCount > protectedBoneyardCount && pendingPlacements.length === 0 && !isFreeStarterWaiting;
   const hasPending = pendingPlacements.length > 0;
   const potentialScore = gameType === 'all-fives' && currentOpenEndsSum > 0 && currentOpenEndsSum % 5 === 0
     ? currentOpenEndsSum
@@ -59,7 +61,9 @@ export const PlayerHandDock: React.FC<PlayerHandDockProps> = ({
       {/* 1. Turn Status Banner */}
       <div
         className={`w-full py-1.5 px-4 flex items-center justify-between transition-colors duration-200 ${
-          isMyTurn
+          isFreeStarterWaiting
+            ? 'bg-amber-700/90 text-white font-bold'
+            : isMyTurn
             ? 'bg-emerald-700 text-white font-bold'
             : 'bg-slate-800 text-slate-300 font-medium'
         }`}
@@ -67,13 +71,17 @@ export const PlayerHandDock: React.FC<PlayerHandDockProps> = ({
         <div className="flex items-center gap-2 text-xs sm:text-sm">
           <span
             className={`w-2.5 h-2.5 rounded-full ${
-              isMyTurn ? 'bg-emerald-300 animate-ping' : 'bg-amber-400'
+              isFreeStarterWaiting ? 'bg-amber-300 animate-ping' : isMyTurn ? 'bg-emerald-300 animate-ping' : 'bg-amber-400'
             }`}
           />
-          {isMyTurn ? (
+          {isFreeStarterWaiting ? (
+            <span className="font-black text-amber-100">
+              🀱 FREE STARTER — {hasPending ? 'Confirm your opening domino!' : 'Select & place a domino to open the round!'}
+            </span>
+          ) : isMyTurn ? (
             <span>YOUR TURN {hasPending ? '— Confirm your placement' : '— Select a domino to place'}</span>
           ) : (
-            <span>{currentTurnPlayerName}'s turn...</span>
+            <span>{currentTurnPlayerName}&apos;s turn...</span>
           )}
         </div>
 
@@ -175,9 +183,9 @@ export const PlayerHandDock: React.FC<PlayerHandDockProps> = ({
           {/* Pass Button */}
           <button
             onClick={onPassTurn}
-            disabled={!isMyTurn || hasPending}
+            disabled={!isMyTurn || hasPending || isFreeStarterWaiting}
             className={`flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold shadow transition active:scale-95 ${
-              isMyTurn && !hasPending
+              isMyTurn && !hasPending && !isFreeStarterWaiting
                 ? 'bg-slate-700 hover:bg-slate-600 text-slate-200'
                 : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
             }`}

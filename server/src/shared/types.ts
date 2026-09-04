@@ -1,6 +1,6 @@
 export type DominoSetType = 'double-6' | 'double-7' | 'double-8' | 'double-9';
 export type GameType = 'classic' | 'all-fives';
-export type StartingTileRule = 'random' | 'host-selects' | 'specific-tile' | 'highest-double' | 'highest-tile' | 'previous-winner';
+export type StartingTileRule = 'free-starter' | 'random' | 'host-selects' | 'specific-tile' | 'highest-double' | 'highest-tile' | 'previous-winner';
 export type EndGameCondition = 'target-score' | 'rounds-limit';
 export type PlacementSide = 'left' | 'right' | 'top' | 'bottom' | 'free';
 
@@ -29,7 +29,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   tilesPerPlayer: 7,
   tilesPerTurn: 1,
   allowDrawing: true,
-  startingTileRule: 'host-selects',
+  startingTileRule: 'free-starter',
   specificStartingTile: 'tile-0-0',
   protectedTiles: ['tile-0-0'],
   protectedBoneyardTiles: 2,

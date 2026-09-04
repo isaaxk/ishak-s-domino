@@ -108,7 +108,7 @@ describe('Multi-Client WebSocket Simulated Integration', () => {
     phone1.on('game:hand_sync', (h) => (phone1Hand = h.hand));
 
     const hostCreateRes: any = await new Promise((res) => {
-      phone1.emit('room:create', { nickname: 'Ali', settings: { gameType: 'all-fives' } }, res);
+      phone1.emit('room:create', { nickname: 'Ali', settings: { gameType: 'all-fives', startingTileRule: 'host-selects' } }, res);
     });
 
     expect(hostCreateRes.success).toBe(true);

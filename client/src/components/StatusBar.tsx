@@ -10,6 +10,7 @@ interface StatusBarProps {
   myPlayerId: string;
   isHost: boolean;
   settings: GameSettings;
+  isFreeStarterWaiting?: boolean;
   onOpenSettings: () => void;
   onOpenHelp: () => void;
   onLeaveRoom: () => void;
@@ -24,6 +25,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({
   myPlayerId,
   isHost,
   settings,
+  isFreeStarterWaiting = false,
   onOpenSettings,
   onOpenHelp,
   onLeaveRoom,
@@ -98,6 +100,11 @@ export const StatusBar: React.FC<StatusBarProps> = ({
 
       {/* Players Score & Hand Count Pills */}
       <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+        {isFreeStarterWaiting && (
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-amber-500/25 text-amber-300 border border-amber-500/50 animate-pulse flex-shrink-0">
+            <span>🀱 Free Starter: Anyone can place the first domino!</span>
+          </div>
+        )}
         {players.map((p) => {
           const isTurn = p.id === currentTurnPlayerId;
           const isMe = p.id === myPlayerId;

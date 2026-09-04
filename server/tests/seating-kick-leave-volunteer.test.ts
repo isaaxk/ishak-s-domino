@@ -125,6 +125,7 @@ describe('Seating, Kick, Leave, and Starter Volunteer Workflow', () => {
     ]);
 
     const created = roomManager.createRoom(hostSocket, 'Alice');
+    roomManager.updateSettings('s-host', { startingTileRule: 'host-selects' });
     const p2 = roomManager.joinRoom(p2Socket, created.roomId!, 'Bob');
 
     // Manager starts game -> enters selecting_starter phase
@@ -213,5 +214,53 @@ describe('Seating, Kick, Leave, and Starter Volunteer Workflow', () => {
       expect(player.tileCount).toBe(6);
     }
     expect(activeSession.boneyard.length).toBe(0);
+  });
+
+  it('handles default free-starter flow: anyone can place first tile, turn advances clockwise, starter can change move', () => {
+    const hostSocket: any = { id: 's-host-fs', join: () => {}, emit: () => {} };
+    const p2Socket: any = { id: 's-p2-fs', join: () => {}, emit: () => {} };
+
+    (io.sockets.sockets as any) = new Map([
+      ['s-host-fs', hostSocket],
+      ['s-p2-fs', p2Socket],
+    ]);
+
+    const created = roomManager.createRoom(hostSocket, 'Alice');
+    const p2 = roomManager.joinRoom(p2Socket, created.roomId!, 'Bob');
+
+    // Default settings startingTileRule is 'free-starter'
+    const session = (roomManager as any).sessions.get(created.roomId!);
+    expect(session.state.settings.startingTileRule).toBe('free-starter');
+
+    // Manager starts game -> enters playing phase directly without selecting_starter modal!
+    const startRes = roomManager.startGame('s-host-fs');
+    expect(startRes.success).toBe(true);
+
+    const activeSession = (roomManager as any).sessions.get(created.roomId!);
+    expect(activeSession.state.phase).toBe('playing');
+    expect(activeSession.state.currentTurnPlayerId).toBeNull();
+    expect(activeSession.state.board.length).toBe(0);
+
+    // Bob (Player 2) has the tile he wants to open with
+    const bobTile = activeSession.privateHands[p2.playerId!][0];
+    const placeRes = roomManager.placeTile('s-p2-fs', bobTile.id, 0, 0, 0, 'free');
+    expect(placeRes.success).toBe(true);
+    expect(activeSession.state.pendingPlacements.length).toBe(1);
+
+    // Bob confirms placing the first tile
+    const confirmRes = roomManager.confirmTurn('s-p2-fs');
+    expect(confirmRes.success).toBe(true);
+    expect(activeSession.state.board.length).toBe(1);
+    expect(activeSession.state.board[0].id).toBe(bobTile.id);
+
+    // Turn immediately advances to next player clockwise (Alice, Host)
+    const hostPlayer = activeSession.state.players.find((p: any) => p.isHost);
+    expect(activeSession.state.currentTurnPlayerId).toBe(hostPlayer.id);
+
+    // Bob can change his move before Alice plays
+    const changeRes = roomManager.changeLastMove('s-p2-fs');
+    expect(changeRes.success).toBe(true);
+    expect(activeSession.state.board.length).toBe(0);
+    expect(activeSession.state.pendingPlacements.length).toBe(1);
   });
 });

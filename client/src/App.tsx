@@ -112,8 +112,10 @@ export function App() {
 
     socket.on('room:state', (state: GameState) => {
       setGameState((prev) => {
-        // Play sound if turn switched to current player
-        if (state.phase === 'playing' && state.currentTurnPlayerId !== prev?.currentTurnPlayerId) {
+        // Play sound if round started or turn switched to current player
+        if (state.phase === 'playing' && prev?.phase !== 'playing') {
+          playSound('turn');
+        } else if (state.phase === 'playing' && state.currentTurnPlayerId !== prev?.currentTurnPlayerId) {
           if (state.currentTurnPlayerId === myPlayerId) {
             playSound('turn');
           }
@@ -421,7 +423,12 @@ export function App() {
 
   // 2. Derive Current User Clear State (Requirement 19)
   const isHost = gameState?.players.find((p) => p.id === myPlayerId)?.isHost || false;
-  const isMyTurn = gameState?.currentTurnPlayerId === myPlayerId;
+  const isFreeStarterWaiting = Boolean(
+    gameState?.phase === 'playing' &&
+    gameState?.settings.startingTileRule === 'free-starter' &&
+    gameState?.board.length === 0
+  );
+  const isMyTurn = (gameState?.currentTurnPlayerId === myPlayerId) || isFreeStarterWaiting;
   const currentTurnPlayer = gameState?.players.find((p) => p.id === gameState.currentTurnPlayerId);
 
   let currentClearState: UserClearState = 'Waiting for players';
@@ -436,7 +443,15 @@ export function App() {
   } else if (gameState.phase === 'game_finished') {
     currentClearState = 'Game finished';
   } else if (gameState.phase === 'playing') {
-    if (gameState.pendingPlacements.length > 0 && isMyTurn) {
+    if (isFreeStarterWaiting) {
+      if (gameState.pendingPlacements.length > 0 && gameState.pendingPlacements.some((p) => p.placedBy === myPlayerId)) {
+        currentClearState = 'Turn pending confirmation';
+      } else if (selectedTile) {
+        currentClearState = 'Placement mode';
+      } else {
+        currentClearState = 'Your turn';
+      }
+    } else if (gameState.pendingPlacements.length > 0 && isMyTurn) {
       currentClearState = 'Turn pending confirmation';
     } else if (selectedTile) {
       currentClearState = 'Placement mode';
@@ -523,6 +538,7 @@ export function App() {
             myPlayerId={myPlayerId}
             isHost={isHost}
             settings={gameState.settings}
+            isFreeStarterWaiting={isFreeStarterWaiting}
             onOpenSettings={() => setIsSettingsOpen(true)}
             onOpenHelp={() => setIsHelpOpen(true)}
             onLeaveRoom={handleLeaveRoom}
@@ -554,7 +570,8 @@ export function App() {
             selectedRotation={selectedRotation}
             isMyTurn={isMyTurn}
             canChangeLastMove={Boolean(gameState.canChangeLastMove && gameState.lastMovePlayerId === myPlayerId)}
-            currentTurnPlayerName={currentTurnPlayer?.nickname || 'Opponent'}
+            isFreeStarterWaiting={isFreeStarterWaiting}
+            currentTurnPlayerName={isFreeStarterWaiting ? 'Anyone' : (currentTurnPlayer?.nickname || 'Opponent')}
             boneyardCount={gameState.boneyardCount}
             protectedBoneyardCount={gameState.protectedBoneyardCount}
             allowDrawing={gameState.settings.allowDrawing}

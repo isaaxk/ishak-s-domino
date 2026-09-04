@@ -66,6 +66,9 @@ describe('End-to-End Multiplayer Synchronization', () => {
     expect(joinRes.success).toBe(true);
     expect(joinRes.playerId).toBeDefined();
 
+    // 2b. Configure host-selects to test manager starter selection
+    roomManager.updateSettings('socket-alice', { startingTileRule: 'host-selects' });
+
     // 3. Host starts game
     const startRes = roomManager.startGame('socket-alice');
     expect(startRes.success).toBe(true);

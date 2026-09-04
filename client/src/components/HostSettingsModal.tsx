@@ -200,7 +200,8 @@ export const HostSettingsModal: React.FC<HostSettingsModalProps> = ({
               onChange={(e) => setForm({ ...form, startingTileRule: e.target.value as StartingTileRule })}
               className="bg-slate-800 border border-slate-700 rounded-xl p-2 text-white font-medium focus:ring-2 focus:ring-emerald-500"
             >
-              <option value="host-selects">Creator Chooses Starting Player (Recommended)</option>
+              <option value="free-starter">Free Starter (Real Life - Anyone can start) (Default)</option>
+              <option value="host-selects">Creator Chooses Starting Player</option>
               <option value="highest-double">Highest Double Held</option>
               <option value="specific-tile">Specific Tile (e.g. 0-0)</option>
               <option value="random">Random Player</option>

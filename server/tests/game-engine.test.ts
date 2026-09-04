@@ -35,9 +35,9 @@ describe('Game Engine State Machine & Physical Freedom', () => {
     },
   ];
 
-  it('starts a new round in selecting_starter phase, deals tiles, and allows manager to choose who starts', () => {
+  it('starts a new round in selecting_starter phase when rule is host-selects, deals tiles, and allows manager to choose who starts', () => {
     const players = createTestPlayers();
-    const session = startNewRound('ROOM-1', DEFAULT_SETTINGS, players, 1);
+    const session = startNewRound('ROOM-1', { ...DEFAULT_SETTINGS, startingTileRule: 'host-selects' }, players, 1);
 
     expect(session.state.phase).toBe('selecting_starter');
     expect(session.state.currentTurnPlayerId).toBeNull();
@@ -58,11 +58,11 @@ describe('Game Engine State Machine & Physical Freedom', () => {
     expect(session.state.currentTurnPlayerId).toBe('player-1');
   });
 
-  it('lets the creator choose the player who will start and put the first domino after the game starts', () => {
+  it('lets the creator choose the player who will start and put the first domino after the game starts when rule is host-selects', () => {
     const players = createTestPlayers();
 
     // Round 1 starts: in selecting_starter phase, manager selects Bob (player-2)
-    const session1 = startNewRound('ROOM-1', DEFAULT_SETTINGS, players, 1);
+    const session1 = startNewRound('ROOM-1', { ...DEFAULT_SETTINGS, startingTileRule: 'host-selects' }, players, 1);
     expect(session1.state.phase).toBe('selecting_starter');
     const selectBob = selectStartingPlayerAction(session1, 'player-1', 'player-2');
     expect(selectBob.success).toBe(true);
@@ -70,12 +70,48 @@ describe('Game Engine State Machine & Physical Freedom', () => {
     expect(session1.state.currentTurnPlayerId).toBe('player-2');
 
     // Round 2 starts: in selecting_starter phase, manager selects Alice (player-1)
-    const session2 = startNewRound('ROOM-1', DEFAULT_SETTINGS, players, 2);
+    const session2 = startNewRound('ROOM-1', { ...DEFAULT_SETTINGS, startingTileRule: 'host-selects' }, players, 2);
     expect(session2.state.phase).toBe('selecting_starter');
     const selectAlice = selectStartingPlayerAction(session2, 'player-1', 'player-1');
     expect(selectAlice.success).toBe(true);
     expect(session2.state.phase).toBe('playing');
     expect(session2.state.currentTurnPlayerId).toBe('player-1');
+  });
+
+  it('starts directly in playing phase with free-starter (real life): all players see hands, any player can place the first domino, turn advances clockwise', () => {
+    const players = createTestPlayers();
+    // DEFAULT_SETTINGS uses startingTileRule: 'free-starter'
+    const session = startNewRound('ROOM-1', DEFAULT_SETTINGS, players, 1);
+
+    expect(session.state.phase).toBe('playing');
+    expect(session.state.currentTurnPlayerId).toBeNull();
+    expect(session.state.board.length).toBe(0);
+    expect(session.state.players[0].tileCount).toBe(7);
+    expect(session.state.players[1].tileCount).toBe(7);
+
+    // Player 2 (Bob) decides to start the round with a tile from his hand
+    const bobHand = session.privateHands['player-2'];
+    const bobTile = bobHand[0];
+    const stageBob = stageTilePlacement(session, 'player-2', bobTile.id);
+    expect(stageBob.success).toBe(true);
+    expect(session.state.pendingPlacements.length).toBe(1);
+
+    // Player 1 cannot confirm Bob's staged tile
+    const aliceConfirmBob = confirmTurnAction(session, 'player-1');
+    expect(aliceConfirmBob.success).toBe(false);
+
+    // Bob confirms opening the round!
+    const confirmBob = confirmTurnAction(session, 'player-2');
+    expect(confirmBob.success).toBe(true);
+    expect(session.state.board.length).toBe(1);
+    expect(session.state.board[0].id).toBe(bobTile.id);
+
+    // Turn immediately advances to the next player clockwise (Alice, player-1)
+    expect(session.state.currentTurnPlayerId).toBe('player-1');
+
+    // Bob can change his move before Alice plays
+    expect(session.state.canChangeLastMove).toBe(true);
+    expect(session.state.lastMovePlayerId).toBe('player-2');
   });
 
   it('allows free physical placement (e.g. [6|2] [5|5] [1|4] without rejection)', () => {

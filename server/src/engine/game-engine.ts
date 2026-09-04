@@ -107,13 +107,15 @@ export function startNewRound(
   });
 
   // Determine starting player:
-  // The creator/host decides who will start and put the first domino!
-  let startingPlayerId = playerIds[0];
+  // In free-starter mode, any player can start once the round begins!
+  let startingPlayerId: string | null = playerIds[0];
   let startingTile: DominoTile | undefined;
 
   if (designatedStartingPlayerId && playerIds.includes(designatedStartingPlayerId)) {
-    // Creator explicitly selected this player to start
+    // Creator or test explicitly selected this player to start
     startingPlayerId = designatedStartingPlayerId;
+  } else if (settings.startingTileRule === 'free-starter') {
+    startingPlayerId = null;
   } else if (settings.startingTileRule === 'host-selects') {
     // By default, the room creator / host starts the round
     const hostPlayer = players.find((p) => p.isHost);
@@ -189,7 +191,9 @@ export function stageTilePlacement(
     return { success: false, error: 'Game is not in active playing phase' };
   }
 
-  if (state.currentTurnPlayerId !== playerId) {
+  const isFreeStarterOpening = state.settings.startingTileRule === 'free-starter' && state.board.length === 0;
+
+  if (!isFreeStarterOpening && state.currentTurnPlayerId !== playerId) {
     return { success: false, error: "Not your turn" };
   }
 
@@ -197,6 +201,11 @@ export function stageTilePlacement(
   const tile = hand.find((t) => t.id === tileId);
   if (!tile) {
     return { success: false, error: 'Tile is not in your hand' };
+  }
+
+  // If opening in free-starter mode, clear any unconfirmed pending tile staged by another player
+  if (isFreeStarterOpening && state.pendingPlacements.length > 0 && state.pendingPlacements[0].placedBy !== playerId) {
+    state.pendingPlacements = [];
   }
 
   // Check if tile is already staged in pendingPlacements -> update its rotation or position!
@@ -258,12 +267,20 @@ export function stageTilePlacement(
  */
 export function undoStagedTurn(session: EngineSession, playerId: string): { success: boolean; error?: string } {
   const { state } = session;
+  const isFreeStarterOpening = state.settings.startingTileRule === 'free-starter' && state.board.length === 0;
 
-  if (state.currentTurnPlayerId !== playerId) {
+  if (!isFreeStarterOpening && state.currentTurnPlayerId !== playerId) {
     return { success: false, error: 'Not your turn' };
   }
 
+  if (isFreeStarterOpening && state.pendingPlacements.some((p) => p.placedBy !== playerId)) {
+    return { success: false, error: 'Cannot undo a tile staged by another player' };
+  }
+
   state.pendingPlacements = [];
+  if (state.board.length === 0 && state.settings.startingTileRule === 'free-starter') {
+    state.currentTurnPlayerId = null;
+  }
   const endsInfo = calculateOpenEnds(state.board);
   state.openEnds = endsInfo.openEnds;
   state.currentOpenEndsSum = endsInfo.sum;
@@ -286,8 +303,9 @@ export function confirmTurnAction(
   error?: string;
 } {
   const { state, privateHands } = session;
+  const isFreeStarterOpening = state.settings.startingTileRule === 'free-starter' && state.board.length === 0;
 
-  if (state.currentTurnPlayerId !== playerId) {
+  if (!isFreeStarterOpening && state.currentTurnPlayerId !== playerId) {
     return { success: false, pointsScored: 0, isRoundOver: false, isGameOver: false, error: 'Not your turn' };
   }
 
@@ -299,6 +317,21 @@ export function confirmTurnAction(
       isGameOver: false,
       error: 'No dominoes placed yet. Place at least one tile or draw/pass.',
     };
+  }
+
+  if (isFreeStarterOpening && state.pendingPlacements.some((p) => p.placedBy !== playerId)) {
+    return {
+      success: false,
+      pointsScored: 0,
+      isRoundOver: false,
+      isGameOver: false,
+      error: 'Cannot confirm: another player has staged a tile. Stage your own tile to start.',
+    };
+  }
+
+  // In free-starter opening, the player who confirmed becomes the designated starter for turn advancement
+  if (isFreeStarterOpening) {
+    state.currentTurnPlayerId = playerId;
   }
 
   // 1. Commit pending placements to board
