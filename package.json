@@ -14,7 +14,7 @@
     "client:dev": "npm run dev --prefix client",
     "build:client": "npm run build --prefix client",
     "build:server": "npm run build --prefix server",
-    "build": "npm run install:all && npm run build:client && npm run build:server",
+    "build": "npm run build:client && npm run build:server",
     "start": "node server/dist/index.js",
     "test": "npm test --prefix server"
   }
