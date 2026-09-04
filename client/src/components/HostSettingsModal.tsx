@@ -33,6 +33,20 @@ export const HostSettingsModal: React.FC<HostSettingsModalProps> = ({
   const requiredTiles = form.maxPlayers * form.tilesPerPlayer;
   const isCompatible = requiredTiles <= totalTilesInSet;
 
+  const handleSelectSet = (st: DominoSetType) => {
+    const setTiles = getMaxTiles(st);
+    const maxAllowed = Math.floor(setTiles / form.maxPlayers);
+    const newTiles = form.tilesPerPlayer > maxAllowed ? Math.max(1, maxAllowed) : form.tilesPerPlayer;
+    setForm((prev) => ({ ...prev, dominoSet: st, tilesPerPlayer: newTiles }));
+  };
+
+  const handleChangeMaxPlayers = (players: number) => {
+    const setTiles = getMaxTiles(form.dominoSet);
+    const maxAllowed = Math.floor(setTiles / players);
+    const newTiles = form.tilesPerPlayer > maxAllowed ? Math.max(1, maxAllowed) : form.tilesPerPlayer;
+    setForm((prev) => ({ ...prev, maxPlayers: players, tilesPerPlayer: newTiles }));
+  };
+
   const handleSave = () => {
     if (!isCompatible) return;
     onSave(form);
@@ -75,7 +89,7 @@ export const HostSettingsModal: React.FC<HostSettingsModalProps> = ({
                 <button
                   key={st}
                   type="button"
-                  onClick={() => setForm({ ...form, dominoSet: st })}
+                  onClick={() => handleSelectSet(st)}
                   className={`py-2 px-3 rounded-xl font-medium border text-center transition capitalize ${
                     form.dominoSet === st
                       ? 'bg-emerald-600 border-emerald-400 text-white font-bold'
@@ -115,7 +129,7 @@ export const HostSettingsModal: React.FC<HostSettingsModalProps> = ({
               <label className="font-semibold text-slate-300">Max Players</label>
               <select
                 value={form.maxPlayers}
-                onChange={(e) => setForm({ ...form, maxPlayers: Number(e.target.value) })}
+                onChange={(e) => handleChangeMaxPlayers(Number(e.target.value))}
                 className="bg-slate-800 border border-slate-700 rounded-xl p-2 text-white font-medium focus:ring-2 focus:ring-emerald-500"
               >
                 {[2, 3, 4, 5, 6, 7, 8].map((n) => (
@@ -133,11 +147,15 @@ export const HostSettingsModal: React.FC<HostSettingsModalProps> = ({
                 onChange={(e) => setForm({ ...form, tilesPerPlayer: Number(e.target.value) })}
                 className="bg-slate-800 border border-slate-700 rounded-xl p-2 text-white font-medium focus:ring-2 focus:ring-emerald-500"
               >
-                {[5, 6, 7, 8, 9, 10, 12].map((n) => (
-                  <option key={n} value={n}>
-                    {n} Tiles
-                  </option>
-                ))}
+                {[3, 4, 5, 6, 7, 8, 9, 10, 12].map((n) => {
+                  const isOver = n * form.maxPlayers > totalTilesInSet;
+                  const boneyardRemaining = totalTilesInSet - n * form.maxPlayers;
+                  return (
+                    <option key={n} value={n} disabled={isOver}>
+                      {n} Tiles {isOver ? '(Too many for set)' : `(${boneyardRemaining} in boneyard)`}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           </div>

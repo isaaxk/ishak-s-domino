@@ -46,6 +46,17 @@ export function dealTiles(
     playerHands[pid] = [];
   }
 
+  if (playerIds.length === 0) {
+    return {
+      playerHands,
+      boneyard: availableTiles,
+    };
+  }
+
+  // Ensure tilesPerPlayer cannot exceed the equal distribution of available tiles
+  const maxPossiblePerPlayer = Math.floor(allTiles.length / playerIds.length);
+  const targetHandSize = Math.max(1, Math.min(tilesPerPlayer, maxPossiblePerPlayer));
+
   // 1. If there is a designated starting tile (e.g., tile-0-0 for All Fives),
   // assign it to the starting player (or first player) so they can start the game.
   let assignedStartingTile: DominoTile | undefined;
@@ -78,7 +89,7 @@ export function dealTiles(
 
   // Distribute protected tiles first to players who still need tiles
   for (const protTile of protectedTilesToDeal) {
-    const eligiblePlayer = playerIds.find((pid) => playerHands[pid].length < tilesPerPlayer);
+    const eligiblePlayer = playerIds.find((pid) => playerHands[pid].length < targetHandSize);
     if (eligiblePlayer) {
       playerHands[eligiblePlayer].push(protTile);
     } else {
@@ -87,12 +98,14 @@ export function dealTiles(
     }
   }
 
-  // Fill up each player's hand until they have `tilesPerPlayer`
-  for (const pid of playerIds) {
-    while (playerHands[pid].length < tilesPerPlayer && shuffledPool.length > 0) {
-      const drawn = shuffledPool.pop();
-      if (drawn) {
-        playerHands[pid].push(drawn);
+  // 3. Deal round-robin so tiles are distributed 1-by-1 evenly across all players
+  for (let round = 0; round < targetHandSize; round++) {
+    for (const pid of playerIds) {
+      if (playerHands[pid].length < targetHandSize && shuffledPool.length > 0) {
+        const drawn = shuffledPool.pop();
+        if (drawn) {
+          playerHands[pid].push(drawn);
+        }
       }
     }
   }

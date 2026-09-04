@@ -52,10 +52,10 @@ export function validateGameConfig(
   setType: DominoSetType,
   playerCount: number,
   tilesPerPlayer: number,
-  protectedTilesCount: number = 0
+  boneyardReserve: number = 0
 ): { valid: boolean; totalTiles: number; requiredTiles: number; error?: string } {
   const totalTiles = getSetTileCount(setType);
-  const requiredTiles = playerCount * tilesPerPlayer + protectedTilesCount;
+  const requiredTiles = playerCount * tilesPerPlayer + boneyardReserve;
 
   if (playerCount < 2) {
     return { valid: false, totalTiles, requiredTiles, error: 'At least 2 players are required' };

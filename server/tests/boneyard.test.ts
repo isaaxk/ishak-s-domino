@@ -74,4 +74,36 @@ describe('Boneyard, Tile Distribution & Protected Tiles', () => {
     expect(draw3.tile).toBeNull();
     expect(draw3.error).toContain('minimum protected count');
   });
+
+  it('deals double-7 (36 tiles) to 6 players with exactly 6 tiles each', () => {
+    const fullSet = generateDominoSet('double-7'); // 36 tiles
+    const playerIds = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'];
+
+    const result = dealTiles(fullSet, playerIds, 6);
+
+    for (const pid of playerIds) {
+      expect(result.playerHands[pid].length).toBe(6);
+    }
+    expect(result.boneyard.length).toBe(0);
+
+    const allAssignedIds = [
+      ...playerIds.flatMap((pid) => result.playerHands[pid].map((t) => t.id)),
+      ...result.boneyard.map((t) => t.id),
+    ];
+    expect(new Set(allAssignedIds).size).toBe(36);
+  });
+
+  it('prevents starvation when excess tilesPerPlayer is configured (e.g. 7 requested for 6 players in 36 tiles)', () => {
+    const fullSet = generateDominoSet('double-7'); // 36 tiles
+    const playerIds = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'];
+
+    // 7 tiles requested would need 42 tiles, but set only has 36
+    const result = dealTiles(fullSet, playerIds, 7);
+
+    // Every player MUST receive an equal number of tiles (6 each), NOT 5 players with 7 and 1 player with 1
+    for (const pid of playerIds) {
+      expect(result.playerHands[pid].length).toBe(6);
+    }
+    expect(result.boneyard.length).toBe(0);
+  });
 });

@@ -66,5 +66,14 @@ describe('Domino Set Generation & Validation', () => {
     // 4 players with 7 tiles in Double-7 (36 tiles) = fits with 8 tiles for boneyard
     const validD7 = validateGameConfig('double-7', 4, 7, 2);
     expect(validD7.valid).toBe(true);
+
+    // 6 players with 6 tiles in Double-7 (36 tiles) = exact fit (36 tiles)
+    const validD7SixPlayers = validateGameConfig('double-7', 6, 6, 0);
+    expect(validD7SixPlayers.valid).toBe(true);
+
+    // 6 players with 7 tiles in Double-7 (42 tiles needed > 36) = fails
+    const invalidD7SixPlayers = validateGameConfig('double-7', 6, 7, 0);
+    expect(invalidD7SixPlayers.valid).toBe(false);
+    expect(invalidD7SixPlayers.error).toContain('Not enough tiles');
   });
 });

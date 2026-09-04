@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { DominoDatabase } from '../src/db/database.js';
 import { RoomManager } from '../src/sockets/room-manager.js';
 import { Server } from 'socket.io';
@@ -162,5 +162,56 @@ describe('Seating, Kick, Leave, and Starter Volunteer Workflow', () => {
     expect(session.state.starterRequest).toBeNull();
     expect(session.state.phase).toBe('playing');
     expect(session.state.currentTurnPlayerId).toBe(p2.playerId);
+  });
+
+  it('allows manager to set double-7 with 6 players and 6 tiles, and deals 6 tiles to all 6 players without starvation', () => {
+    const sockets: any[] = [];
+    const playerMap = new Map();
+    for (let i = 0; i < 6; i++) {
+      const s = { id: `s-p${i}`, join: () => {}, emit: () => {} };
+      sockets.push(s);
+      playerMap.set(s.id, s);
+    }
+    (io.sockets.sockets as any) = playerMap;
+
+    // 1. Host creates room with maxPlayers 6
+    const created = roomManager.createRoom(sockets[0], 'Player 0', {
+      dominoSet: 'double-7',
+      maxPlayers: 6,
+      tilesPerPlayer: 6,
+    });
+
+    // 2. 5 more players join
+    for (let i = 1; i < 6; i++) {
+      const joinRes = roomManager.joinRoom(sockets[i], created.roomId!, `Player ${i}`);
+      expect(joinRes.success).toBe(true);
+    }
+
+    // 3. Manager can also update/confirm settings to double-7, 6 max players, 6 tiles per player
+    const updateRes = roomManager.updateSettings('s-p0', {
+      dominoSet: 'double-7',
+      maxPlayers: 6,
+      tilesPerPlayer: 6,
+    });
+    expect(updateRes.success).toBe(true);
+
+    const session = (roomManager as any).sessions.get(created.roomId!);
+    expect(session.state.settings.dominoSet).toBe('double-7');
+    expect(session.state.settings.tilesPerPlayer).toBe(6);
+
+    // 4. Manager starts game
+    const startRes = roomManager.startGame('s-p0');
+    expect(startRes.success).toBe(true);
+
+    const activeSession = (roomManager as any).sessions.get(created.roomId!);
+
+    // 5. Verify every single player has exactly 6 tiles (not 7 and 1)
+    for (let i = 0; i < 6; i++) {
+      const player = activeSession.state.players[i];
+      const hand = activeSession.privateHands[player.id];
+      expect(hand.length).toBe(6);
+      expect(player.tileCount).toBe(6);
+    }
+    expect(activeSession.boneyard.length).toBe(0);
   });
 });

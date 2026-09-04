@@ -35,13 +35,25 @@ export const LandingView: React.FC<LandingViewProps> = ({
     }
   }, []);
 
+  const getMaxTiles = (set: DominoSetType) => {
+    switch (set) {
+      case 'double-6': return 28;
+      case 'double-7': return 36;
+      case 'double-8': return 45;
+      case 'double-9': return 55;
+    }
+  };
+
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!nickname.trim()) return;
+    const maxAllowed = Math.floor(getMaxTiles(dominoSet) / maxPlayers);
+    const tilesPerPlayer = Math.min(7, Math.max(1, maxAllowed));
     onCreateRoom(nickname.trim(), {
       dominoSet,
       gameType,
       maxPlayers,
+      tilesPerPlayer,
     });
   };
 

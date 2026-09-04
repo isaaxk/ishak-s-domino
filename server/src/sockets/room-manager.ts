@@ -23,7 +23,7 @@ import {
   EngineSession,
 } from '../engine/game-engine.js';
 import { sanitizeStateForPlayer } from './sanitize.js';
-import { validateGameConfig } from '../engine/domino-set.js';
+import { validateGameConfig, getSetTileCount } from '../engine/domino-set.js';
 
 export class RoomManager {
   private io: Server<ClientToServerEvents, ServerToClientEvents>;
@@ -67,6 +67,13 @@ export class RoomManager {
     const playerId = uuidv4();
     const sessionToken = uuidv4();
     const settings: GameSettings = { ...DEFAULT_SETTINGS, ...settingsInput };
+
+    // Auto-clamp tilesPerPlayer so it is always compatible with maxPlayers and dominoSet
+    const totalTiles = getSetTileCount(settings.dominoSet);
+    const maxAllowedTiles = Math.floor(totalTiles / settings.maxPlayers);
+    if (settings.tilesPerPlayer > maxAllowedTiles) {
+      settings.tilesPerPlayer = Math.max(1, maxAllowedTiles);
+    }
 
     const hostPlayer: PlayerState = {
       id: playerId,
@@ -243,18 +250,18 @@ export class RoomManager {
     const player = session.state.players.find((p) => p.id === meta.playerId);
     if (!player || !player.isHost) return { success: false, error: 'Only the host can adjust game settings' };
 
-    if (session.state.phase !== 'waiting_players') {
+    if (session.state.phase !== 'waiting_players' && session.state.phase !== 'waiting_ready') {
       return { success: false, error: 'Settings cannot be modified while game is running' };
     }
 
     const merged = { ...session.state.settings, ...newSettings };
 
-    // Validate config compatibility with domino set
+    // Validate config compatibility with domino set (reserve is 0 for initial deal)
     const validation = validateGameConfig(
       merged.dominoSet,
       merged.maxPlayers,
       merged.tilesPerPlayer,
-      merged.protectedTiles?.length || 0
+      0
     );
 
     if (!validation.valid) {
@@ -338,6 +345,13 @@ export class RoomManager {
       return { success: false, error: 'At least 2 players are required to start' };
     }
 
+    // Auto-clamp tilesPerPlayer so every joined player receives an equal amount of tiles
+    const totalTiles = getSetTileCount(session.state.settings.dominoSet);
+    const maxAllowedForJoined = Math.floor(totalTiles / session.state.players.length);
+    if (session.state.settings.tilesPerPlayer > maxAllowedForJoined) {
+      session.state.settings.tilesPerPlayer = Math.max(1, maxAllowedForJoined);
+    }
+
     // Initialize round 1 with creator-chosen starting player
     const newSession = startNewRound(
       meta.roomId,
@@ -372,6 +386,13 @@ export class RoomManager {
 
     const nextRoundNumber = session.state.roundNumber + 1;
     const winnerId = session.state.roundWinnerId || undefined;
+
+    // Auto-clamp tilesPerPlayer so every joined player receives an equal amount of tiles
+    const totalTilesNext = getSetTileCount(session.state.settings.dominoSet);
+    const maxAllowedNext = Math.floor(totalTilesNext / session.state.players.length);
+    if (session.state.settings.tilesPerPlayer > maxAllowedNext) {
+      session.state.settings.tilesPerPlayer = Math.max(1, maxAllowedNext);
+    }
 
     const newSession = startNewRound(
       meta.roomId,
