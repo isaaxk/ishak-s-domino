@@ -127,17 +127,6 @@ export function App() {
             playSound('score');
           }
         }
-        // Broadcast notifications for pass, draw, undo pass to everyone
-        if (state.lastMoveSummary && state.lastMoveSummary.timestamp !== lastMoveTimestampRef.current) {
-          lastMoveTimestampRef.current = state.lastMoveSummary.timestamp;
-          if (state.lastMoveSummary.moveType === 'pass') {
-            showToast(`${state.lastMoveSummary.playerNickname} passed`, 'info');
-          } else if (state.lastMoveSummary.moveType === 'draw') {
-            showToast(`${state.lastMoveSummary.playerNickname} took a tile from the draw`, 'info');
-          } else if (state.lastMoveSummary.moveType === 'undo_pass') {
-            showToast(`${state.lastMoveSummary.playerNickname} undid their pass`, 'info');
-          }
-        }
         return state;
       });
     });
@@ -579,6 +568,7 @@ export function App() {
             selectedRotation={selectedRotation}
             openEnds={gameState.openEnds}
             isMyTurn={isMyTurn}
+            myPlayerId={myPlayerId}
             canChangeLastMove={Boolean(gameState.canChangeLastMove && gameState.lastMovePlayerId === myPlayerId)}
             canUndoPass={Boolean(gameState.canUndoPass && gameState.lastPassPlayerId === myPlayerId)}
             gameType={gameState.settings.gameType}

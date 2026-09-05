@@ -20,6 +20,8 @@ import {
   X,
   Sparkles,
   Edit3,
+  Plus,
+  SkipForward,
 } from 'lucide-react';
 
 interface DominoBoardProps {
@@ -29,6 +31,7 @@ interface DominoBoardProps {
   selectedRotation: number;
   openEnds?: OpenEndInfo[];
   isMyTurn: boolean;
+  myPlayerId?: string;
   canChangeLastMove?: boolean;
   canUndoPass?: boolean;
   gameType: 'classic' | 'all-fives';
@@ -55,6 +58,7 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
   selectedRotation,
   openEnds = [],
   isMyTurn,
+  myPlayerId,
   canChangeLastMove = false,
   canUndoPass = false,
   gameType,
@@ -79,6 +83,51 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
 
   // Two-step placement state: Step 1 (null: show Put buttons at open ends), Step 2 (number: index of selected open end)
   const [selectedEndIndex, setSelectedEndIndex] = useState<number | null>(null);
+
+  // Action notification banner for other players (Purple for pass/undo pass, Orange for draw)
+  const [tableNotification, setTableNotification] = useState<{
+    text: string;
+    type: 'purple' | 'orange';
+    action: 'pass' | 'undo_pass' | 'draw';
+    timestamp: number;
+  } | null>(null);
+
+  const lastProcessedSummaryTimestamp = useRef<number>(0);
+
+  useEffect(() => {
+    if (!lastMoveSummary || !lastMoveSummary.timestamp) return;
+    if (lastMoveSummary.timestamp === lastProcessedSummaryTimestamp.current) return;
+    lastProcessedSummaryTimestamp.current = lastMoveSummary.timestamp;
+
+    // "write for other players"
+    const isOtherPlayer = myPlayerId ? lastMoveSummary.playerId !== myPlayerId : true;
+    if (!isOtherPlayer) return;
+
+    if (lastMoveSummary.moveType === 'pass' || lastMoveSummary.moveType === 'undo_pass') {
+      setTableNotification({
+        text: lastMoveSummary.description,
+        type: 'purple',
+        action: lastMoveSummary.moveType,
+        timestamp: lastMoveSummary.timestamp,
+      });
+    } else if (lastMoveSummary.moveType === 'draw') {
+      setTableNotification({
+        text: lastMoveSummary.description,
+        type: 'orange',
+        action: 'draw',
+        timestamp: lastMoveSummary.timestamp,
+      });
+    }
+  }, [lastMoveSummary, myPlayerId]);
+
+  // Auto clear table notification after 6 seconds
+  useEffect(() => {
+    if (!tableNotification) return;
+    const timer = setTimeout(() => {
+      setTableNotification(null);
+    }, 6000);
+    return () => clearTimeout(timer);
+  }, [tableNotification?.timestamp]);
 
   // Reset selected end when tile changes or placement is staged
   useEffect(() => {
@@ -912,9 +961,42 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
         </div>
       )}
 
+      {/* Action Notification Banner for other players (Purple for pass/undo pass, Orange for took a tile) */}
+      {tableNotification && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 animate-fadeIn pointer-events-auto">
+          {tableNotification.type === 'purple' ? (
+            <div
+              onClick={() => setTableNotification(null)}
+              className="flex items-center gap-3 px-6 py-3 rounded-2xl bg-purple-700/95 hover:bg-purple-600/95 border-2 border-purple-300 text-white text-base font-black shadow-2xl shadow-purple-950/80 backdrop-blur transition active:scale-95 cursor-pointer"
+              title="Click to dismiss"
+            >
+              {tableNotification.action === 'undo_pass' ? (
+                <Undo2 size={20} className="text-purple-200 flex-shrink-0" />
+              ) : (
+                <SkipForward size={20} className="text-purple-200 flex-shrink-0" />
+              )}
+              <span className="tracking-wide">{tableNotification.text}</span>
+            </div>
+          ) : (
+            <div
+              onClick={() => setTableNotification(null)}
+              className="flex items-center gap-3 px-6 py-3 rounded-2xl bg-orange-600/95 hover:bg-orange-500/95 border-2 border-orange-300 text-white text-base font-black shadow-2xl shadow-orange-950/80 backdrop-blur transition active:scale-95 cursor-pointer"
+              title="Click to dismiss"
+            >
+              <Plus size={20} className="text-orange-200 flex-shrink-0" />
+              <span className="tracking-wide">{tableNotification.text}</span>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Helpful Overlay Instruction */}
       {selectedTile && isMyTurn && pendingPlacements.length === 0 && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 pointer-events-none animate-fadeIn">
+        <div
+          className={`absolute ${
+            canChangeLastMove || canUndoPass || tableNotification ? 'top-16' : 'top-3'
+          } left-1/2 -translate-x-1/2 z-20 pointer-events-none animate-fadeIn transition-all`}
+        >
           <div className="px-4 py-2 rounded-full bg-neutral-900/90 border border-emerald-500/50 text-emerald-300 text-xs font-bold shadow-2xl text-center backdrop-blur flex items-center gap-2">
             <Sparkles size={14} className="text-amber-400" />
             {selectedEndIndex !== null
