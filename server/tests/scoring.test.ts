@@ -206,6 +206,43 @@ describe('Scoring Engine (Classic & All Fives)', () => {
     expect(result.points).toBe(15);
   });
 
+  it('correctly calculates open ends for snake turn layout with spinner [0|0], left [4:2], right [6:6] summing to 16', () => {
+    // Board matching user screenshot:
+    // Center Spinner: [0|0] at (0, 0), vertical
+    // Left branch: [2|0] at (-63, 0), [4|2] turned down at (-83, 63)
+    // Right branch: [0|1] at (63, 0), [1|6] turned down at (83, 63), [6|6] crosswise at (83, 126)
+    // Expected ends:
+    // - Spinner Top: 0
+    // - Spinner Bottom: 0
+    // - Left branch leaf [4|2]: 4
+    // - Right branch leaf [6|6]: 12 (6 + 6)
+    // Total sum = 0 + 0 + 4 + 12 = 16!
+    const board: PlacedTile[] = [
+      { id: 't-0-0', sideA: 0, sideB: 0, isDouble: true, x: 0, y: 0, rotation: 90, placedBy: 'p1', turnNumber: 1, stepIndex: 0 },
+      { id: 't-2-0', sideA: 2, sideB: 0, isDouble: false, x: -63, y: 0, rotation: 0, placedBy: 'p2', turnNumber: 2, stepIndex: 0, attachedToId: 't-0-0' },
+      { id: 't-0-1', sideA: 0, sideB: 1, isDouble: false, x: 63, y: 0, rotation: 0, placedBy: 'p1', turnNumber: 3, stepIndex: 0, attachedToId: 't-0-0' },
+      { id: 't-4-2', sideA: 2, sideB: 4, isDouble: false, x: -83, y: 63, rotation: 90, placedBy: 'p2', turnNumber: 4, stepIndex: 0, attachedToId: 't-2-0' },
+      { id: 't-1-6', sideA: 1, sideB: 6, isDouble: false, x: 83, y: 63, rotation: 90, placedBy: 'p1', turnNumber: 5, stepIndex: 0, attachedToId: 't-0-1' },
+      { id: 't-6-6', sideA: 6, sideB: 6, isDouble: true, x: 83, y: 126, rotation: 0, placedBy: 'p2', turnNumber: 6, stepIndex: 0, attachedToId: 't-1-6' },
+    ];
+
+    const result = calculateOpenEnds(board);
+    expect(result.openEnds.length).toBe(4);
+
+    // Verify individual open end values
+    const pipValues = result.openEnds.map((e) => e.pipValue).sort((a, b) => a - b);
+    expect(pipValues).toEqual([0, 0, 4, 12]);
+
+    // Verify total sum is strictly 16
+    expect(result.sum).toBe(16);
+
+    // Verify intermediate tiles like t-1-6 and t-2-0 have NO badges
+    const openEndTileIds = result.openEnds.map((e) => e.tileId);
+    expect(openEndTileIds).not.toContain('t-1-6');
+    expect(openEndTileIds).not.toContain('t-2-0');
+    expect(openEndTileIds).not.toContain('t-0-1');
+  });
+
   it('evaluates blocked round and identifies winner with lowest pip count', () => {
     const hands: Record<string, DominoTile[]> = {
       p1: [{ id: 'tile-1-1', sideA: 1, sideB: 1, totalPips: 2, isDouble: true }], // 2 pips (winner)
