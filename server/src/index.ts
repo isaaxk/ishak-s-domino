@@ -200,6 +200,26 @@ io.on('connection', (socket) => {
     }
   });
 
+  // 11b. Manager Finishes Match
+  socket.on('game:finish_game', (callback) => {
+    try {
+      const result = roomManager.finishGame(socket.id);
+      callback(result);
+    } catch (err: any) {
+      callback({ success: false, error: err.message });
+    }
+  });
+
+  // 11c. Manager Edits Scores
+  socket.on('game:update_scores', ({ scores }, callback) => {
+    try {
+      const result = roomManager.updateScores(socket.id, scores || {});
+      callback(result);
+    } catch (err: any) {
+      callback({ success: false, error: err.message });
+    }
+  });
+
   // 12. Player Leaves Room
   socket.on('room:leave', (callback) => {
     try {

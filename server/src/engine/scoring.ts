@@ -26,7 +26,7 @@ export function calculateAllFivesTurnScore(board: PlacedTile[]): {
  * Calculates sum of pips for an array of tiles.
  */
 export function calculatePipsSum(tiles: DominoTile[]): number {
-  return tiles.reduce((acc, t) => acc + t.totalPips, 0);
+  return tiles.reduce((acc, t) => acc + (t.totalPips ?? ((t.sideA ?? 0) + (t.sideB ?? 0))), 0);
 }
 
 /**

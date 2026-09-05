@@ -151,6 +151,8 @@ export interface GameState {
   lastMovePlayerId?: string | null;
   canUndoPass?: boolean;
   lastPassPlayerId?: string | null;
+  isBlocked?: boolean;
+  blockedReason?: string;
   starterRequest?: {
     playerId: string;
     playerNickname: string;
@@ -229,6 +231,15 @@ export interface ClientToServerEvents {
   ) => void;
 
   'game:undo_pass': (
+    callback: (res: { success: boolean; error?: string }) => void
+  ) => void;
+
+  'game:finish_game': (
+    callback: (res: { success: boolean; error?: string }) => void
+  ) => void;
+
+  'game:update_scores': (
+    payload: { scores: Record<string, number> },
     callback: (res: { success: boolean; error?: string }) => void
   ) => void;
 

@@ -22,6 +22,8 @@ import {
   passTurnAction,
   undoPassAction,
   selectStartingPlayerAction,
+  finishGameAction,
+  updatePlayerScoresAction,
   EngineSession,
 } from '../engine/game-engine.js';
 import { sanitizeStateForPlayer } from './sanitize.js';
@@ -766,6 +768,47 @@ export class RoomManager {
     if (!session) return { success: false, error: 'Session not found' };
 
     const result = undoPassAction(session, meta.playerId);
+    if (result.success) {
+      this.db.saveGameState(meta.roomId, session.state, session.privateHands, session.boneyard);
+      this.broadcastRoomState(meta.roomId);
+    }
+    return result;
+  }
+
+  finishGame(socketId: string): { success: boolean; error?: string } {
+    const meta = this.socketToPlayer.get(socketId);
+    if (!meta) return { success: false, error: 'Not in a room' };
+
+    const session = this.sessions.get(meta.roomId);
+    if (!session) return { success: false, error: 'Session not found' };
+
+    const result = finishGameAction(session, meta.playerId);
+    if (result.success) {
+      this.db.saveGameState(meta.roomId, session.state, session.privateHands, session.boneyard);
+      this.broadcastRoomState(meta.roomId);
+
+      if (session.state.gameWinnerId) {
+        const finalScores: Record<string, number> = {};
+        for (const p of session.state.players) {
+          finalScores[p.id] = p.score;
+        }
+        this.io.to(meta.roomId).emit('game:game_over', {
+          winnerId: session.state.gameWinnerId,
+          finalScores,
+        });
+      }
+    }
+    return result;
+  }
+
+  updateScores(socketId: string, scores: Record<string, number>): { success: boolean; error?: string } {
+    const meta = this.socketToPlayer.get(socketId);
+    if (!meta) return { success: false, error: 'Not in a room' };
+
+    const session = this.sessions.get(meta.roomId);
+    if (!session) return { success: false, error: 'Session not found' };
+
+    const result = updatePlayerScoresAction(session, meta.playerId, scores);
     if (result.success) {
       this.db.saveGameState(meta.roomId, session.state, session.privateHands, session.boneyard);
       this.broadcastRoomState(meta.roomId);

@@ -5,6 +5,7 @@ import {
   DominoTile,
   PlacedTile,
   PlacementSide,
+  OpenEndInfo,
 } from '../shared/types.js';
 import { generateDominoSet } from './domino-set.js';
 import { dealTiles, drawFromBoneyard } from './boneyard.js';
@@ -164,6 +165,8 @@ export function startNewRound(
     currentOpenEndsSum: 0,
     canUndoPass: false,
     lastPassPlayerId: null,
+    isBlocked: false,
+    blockedReason: undefined,
   };
 
   return {
@@ -172,6 +175,66 @@ export function startNewRound(
     boneyard: deal.boneyard,
     lastPass: null,
   };
+}
+
+/**
+ * Determines whether the board has become blocked.
+ * Specifically checks:
+ * 1. If all open ends have value V and all tiles in the set containing V are already on the board.
+ * 2. If no player in the room holds a tile matching ANY open end, AND the boneyard contains no tile matching ANY open end.
+ */
+export function checkBoardBlocked(
+  board: PlacedTile[],
+  openEnds: OpenEndInfo[],
+  privateHands: Record<string, DominoTile[]>,
+  boneyard: DominoTile[],
+  allowDrawing: boolean
+): { isBlocked: boolean; reason?: string } {
+  if (board.length === 0 || openEnds.length === 0) {
+    return { isBlocked: false };
+  }
+
+  const openValues = new Set(openEnds.map((e) => e.pipValue));
+
+  // Case 1: All open ends end with the exact same number V, and all tiles with V are already on the table
+  // (e.g., both ends are 6, and all seven 6s are placed)
+  if (openValues.size === 1) {
+    const singleVal = Array.from(openValues)[0];
+    const existsInHands = Object.values(privateHands).some((hand) =>
+      hand.some((t) => t.sideA === singleVal || t.sideB === singleVal)
+    );
+    const existsInBoneyard = boneyard.some(
+      (t) => t.sideA === singleVal || t.sideB === singleVal
+    );
+
+    if (!existsInHands && !existsInBoneyard) {
+      return {
+        isBlocked: true,
+        reason: `Game blocked! All ends are ${singleVal} and all matching tiles are on the table.`,
+      };
+    }
+  }
+
+  // Case 2: General block: No playable tile in any hand, and boneyard cannot provide a playable tile
+  const playableInHand = Object.values(privateHands).some((hand) =>
+    hand.some((t) => openValues.has(t.sideA) || openValues.has(t.sideB))
+  );
+
+  if (!playableInHand) {
+    const playableInBoneyard =
+      allowDrawing &&
+      boneyard.some((t) => openValues.has(t.sideA) || openValues.has(t.sideB));
+
+    if (!playableInBoneyard) {
+      const endsStr = Array.from(openValues).join(', ');
+      return {
+        isBlocked: true,
+        reason: `Game blocked! No remaining tiles can match the open ends (${endsStr}).`,
+      };
+    }
+  }
+
+  return { isBlocked: false };
 }
 
 /**
@@ -430,6 +493,47 @@ export function confirmTurnAction(
     return { success: true, pointsScored, isRoundOver, isGameOver };
   }
 
+  // 6b. Check if the board has become blocked after this placement
+  const blockCheck = checkBoardBlocked(
+    state.board,
+    state.openEnds || [],
+    privateHands,
+    session.boneyard,
+    state.settings.allowDrawing
+  );
+
+  if (blockCheck.isBlocked) {
+    isRoundOver = true;
+    state.isBlocked = true;
+    state.blockedReason = blockCheck.reason;
+    state.phase = 'round_finished';
+    state.revealedHands = { ...privateHands };
+    session.lastPass = null;
+    state.canUndoPass = false;
+    state.lastPassPlayerId = null;
+
+    // Evaluate lowest hand pip total
+    const blockedEval = evaluateBlockedRound(
+      state.players.map((p) => p.id),
+      privateHands
+    );
+    state.roundWinnerId = blockedEval.winnerId;
+
+    let roundBonus = 0;
+    if (blockedEval.winnerId) {
+      const winner = state.players.find((p) => p.id === blockedEval.winnerId);
+      const oppPips = calculateClassicRoundScore(blockedEval.winnerId, privateHands);
+      roundBonus = state.settings.gameType === 'all-fives' ? Math.round(oppPips / 5) * 5 : oppPips;
+      if (winner) {
+        winner.score += roundBonus;
+      }
+    }
+    state.roundPointsWon = roundBonus;
+
+    isGameOver = checkGameOver(state);
+    return { success: true, pointsScored, isRoundOver, isGameOver };
+  }
+
   // 7. Advance turn to next player
   advanceTurn(state);
 
@@ -562,6 +666,8 @@ export function passTurnAction(
     );
 
     state.phase = 'round_finished';
+    state.isBlocked = true;
+    state.blockedReason = 'All players passed consecutively — round blocked.';
     state.roundWinnerId = blockedEval.winnerId;
     state.revealedHands = { ...privateHands };
     session.lastPass = null;
@@ -776,6 +882,91 @@ export function selectStartingPlayerAction(
     moveType: 'play',
     pointsAwarded: 0,
     description: `${caller.nickname} chose ${chosenPlayer.nickname} to start Round ${state.roundNumber}`,
+    timestamp: Date.now(),
+  };
+
+  return { success: true };
+}
+
+/**
+ * Allows the room manager (host) to finish the match at any time via a dedicated button.
+ */
+export function finishGameAction(
+  session: EngineSession,
+  callerPlayerId: string
+): { success: boolean; error?: string } {
+  const { state } = session;
+  const caller = state.players.find((p) => p.id === callerPlayerId);
+  if (!caller || !caller.isHost) {
+    return { success: false, error: 'Only the room manager can finish the match' };
+  }
+
+  // Find player with highest score
+  let maxScore = -1;
+  let leaderId: string | null = null;
+  for (const p of state.players) {
+    if (p.score > maxScore) {
+      maxScore = p.score;
+      leaderId = p.id;
+    }
+  }
+
+  state.phase = 'game_finished';
+  state.gameWinnerId = leaderId;
+  state.revealedHands = { ...session.privateHands };
+
+  state.lastMoveSummary = {
+    playerId: callerPlayerId,
+    playerNickname: caller.nickname,
+    moveType: 'play',
+    pointsAwarded: 0,
+    description: `${caller.nickname} (Manager) finished the match!`,
+    timestamp: Date.now(),
+  };
+
+  return { success: true };
+}
+
+/**
+ * Allows the room manager (host) to edit/adjust any player's score at any time.
+ */
+export function updatePlayerScoresAction(
+  session: EngineSession,
+  callerPlayerId: string,
+  scores: Record<string, number>
+): { success: boolean; error?: string } {
+  const { state } = session;
+  const caller = state.players.find((p) => p.id === callerPlayerId);
+  if (!caller || !caller.isHost) {
+    return { success: false, error: 'Only the room manager can edit player scores' };
+  }
+
+  for (const [pid, newScore] of Object.entries(scores)) {
+    const player = state.players.find((p) => p.id === pid);
+    if (player && typeof newScore === 'number' && !isNaN(newScore)) {
+      player.score = Math.max(0, Math.round(newScore));
+    }
+  }
+
+  // If game is in game_finished, update gameWinnerId to leader with new scores
+  if (state.phase === 'game_finished') {
+    let maxScore = -1;
+    let leaderId: string | null = null;
+    for (const p of state.players) {
+      if (p.score > maxScore) {
+        maxScore = p.score;
+        leaderId = p.id;
+      }
+    }
+    state.gameWinnerId = leaderId;
+  }
+
+  state.lastMoveSummary = {
+    playerId: callerPlayerId,
+    playerNickname: caller.nickname,
+    moveType: 'play',
+    pointsAwarded: 0,
+    description: `Manager updated player scores`,
     timestamp: Date.now(),
   };
 

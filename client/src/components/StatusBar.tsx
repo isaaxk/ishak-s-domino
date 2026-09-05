@@ -1,6 +1,6 @@
 import React from 'react';
 import type { PlayerState, GameSettings } from '../../../shared/types.js';
-import { Settings, Copy, Check, Info, LogOut, UserX } from 'lucide-react';
+import { Settings, Copy, Check, Info, LogOut, UserX, Edit3, Flag } from 'lucide-react';
 
 interface StatusBarProps {
   roomId: string;
@@ -13,6 +13,8 @@ interface StatusBarProps {
   isFreeStarterWaiting?: boolean;
   onOpenSettings: () => void;
   onOpenHelp: () => void;
+  onOpenEditScores?: () => void;
+  onFinishGame?: () => void;
   onLeaveRoom: () => void;
   onKickPlayer?: (playerId: string) => void;
 }
@@ -28,6 +30,8 @@ export const StatusBar: React.FC<StatusBarProps> = ({
   isFreeStarterWaiting = false,
   onOpenSettings,
   onOpenHelp,
+  onOpenEditScores,
+  onFinishGame,
   onLeaveRoom,
   onKickPlayer,
 }) => {
@@ -63,7 +67,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({
           </span>
         </div>
 
-        {/* Action Icons: Help & Settings */}
+        {/* Action Icons: Help, Scores, Finish & Settings */}
         <div className="flex items-center gap-1.5">
           <button
             onClick={onOpenHelp}
@@ -74,13 +78,35 @@ export const StatusBar: React.FC<StatusBarProps> = ({
           </button>
 
           {isHost && (
-            <button
-              onClick={onOpenSettings}
-              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
-              title="Host Settings"
-            >
-              <Settings size={18} />
-            </button>
+            <>
+              <button
+                onClick={onOpenEditScores}
+                className="flex items-center gap-1 px-2 py-1 text-xs text-amber-300 hover:text-white bg-amber-950/60 hover:bg-amber-800 rounded-lg border border-amber-600/50 transition font-bold"
+                title="Edit Player Scores"
+              >
+                <Edit3 size={13} /> Scores
+              </button>
+
+              <button
+                onClick={() => {
+                  if (confirm('Are you sure you want to finish the match now? Final scores will be locked.')) {
+                    onFinishGame?.();
+                  }
+                }}
+                className="flex items-center gap-1 px-2 py-1 text-xs text-rose-300 hover:text-white bg-rose-950/60 hover:bg-rose-900 rounded-lg border border-rose-600/50 transition font-bold"
+                title="Finish Match Now"
+              >
+                <Flag size={13} /> Finish
+              </button>
+
+              <button
+                onClick={onOpenSettings}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
+                title="Host Settings"
+              >
+                <Settings size={18} />
+              </button>
+            </>
           )}
 
           {/* Leave Table Button */}

@@ -17,6 +17,7 @@ import { RoundOverModal } from './components/RoundOverModal.js';
 import { GameOverModal } from './components/GameOverModal.js';
 import { RulesHelpModal } from './components/RulesHelpModal.js';
 import { SelectStarterModal } from './components/SelectStarterModal.js';
+import { EditScoresModal } from './components/EditScoresModal.js';
 
 // Web Audio synthesizer for crisp, low-latency tactile sound effects
 function playSound(type: 'click' | 'place' | 'draw' | 'score' | 'turn') {
@@ -81,6 +82,7 @@ export function App() {
   // Modals
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isHelpOpen, setIsHelpOpen] = useState<boolean>(false);
+  const [isEditScoresOpen, setIsEditScoresOpen] = useState<boolean>(false);
 
   // Toast notifications
   const [toast, setToast] = useState<{ message: string; type: 'info' | 'error' | 'success' } | null>(null);
@@ -314,6 +316,34 @@ export function App() {
     handleNextRound();
   };
 
+  // Manager forces finish game
+  const handleFinishGame = () => {
+    if (!window.confirm('Are you sure you want to finish the game now? The player with the highest score will win.')) {
+      return;
+    }
+    playSound('click');
+    socket.emit('game:finish_game', (res) => {
+      if (res.success) {
+        showToast('Match finished by manager!', 'info');
+      } else {
+        showToast(res.error || 'Failed to finish match', 'error');
+      }
+    });
+  };
+
+  // Manager updates player scores
+  const handleUpdateScores = (scores: Record<string, number>) => {
+    playSound('click');
+    socket.emit('game:update_scores', { scores }, (res) => {
+      if (res.success) {
+        showToast('Scores updated successfully!', 'success');
+        setIsEditScoresOpen(false);
+      } else {
+        showToast(res.error || 'Failed to update scores', 'error');
+      }
+    });
+  };
+
   // Stage Tile Placement
   const handlePlaceTile = (placement: {
     tileId: string;
@@ -526,6 +556,8 @@ export function App() {
             settings={gameState.settings}
             onOpenSettings={() => setIsSettingsOpen(true)}
             onOpenHelp={() => setIsHelpOpen(true)}
+            onOpenEditScores={() => setIsEditScoresOpen(true)}
+            onFinishGame={handleFinishGame}
             onLeaveRoom={handleLeaveRoom}
             onKickPlayer={handleKickPlayer}
           />
@@ -556,6 +588,8 @@ export function App() {
             isFreeStarterWaiting={isFreeStarterWaiting}
             onOpenSettings={() => setIsSettingsOpen(true)}
             onOpenHelp={() => setIsHelpOpen(true)}
+            onOpenEditScores={() => setIsEditScoresOpen(true)}
+            onFinishGame={handleFinishGame}
             onLeaveRoom={handleLeaveRoom}
             onKickPlayer={handleKickPlayer}
           />
@@ -648,6 +682,18 @@ export function App() {
           state={gameState}
           isHost={isHost}
           onNextRound={handleNextRound}
+          onFinishGame={handleFinishGame}
+          onUpdateScores={handleUpdateScores}
+        />
+      )}
+
+      {/* Manager Edit Scores Modal */}
+      {gameState && (
+        <EditScoresModal
+          isOpen={isEditScoresOpen}
+          onClose={() => setIsEditScoresOpen(false)}
+          players={gameState.players}
+          onSaveScores={handleUpdateScores}
         />
       )}
 
