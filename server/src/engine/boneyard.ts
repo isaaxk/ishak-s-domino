@@ -133,6 +133,14 @@ export function drawFromBoneyard(
   boneyard: DominoTile[],
   protectedCount: number = 0
 ): { tile: DominoTile | null; remainingBoneyard: DominoTile[]; error?: string } {
+  if (boneyard.length === 0) {
+    return {
+      tile: null,
+      remainingBoneyard: boneyard,
+      error: 'Boneyard empty (0 tiles remaining in draw pile)',
+    };
+  }
+
   if (boneyard.length <= protectedCount) {
     return {
       tile: null,

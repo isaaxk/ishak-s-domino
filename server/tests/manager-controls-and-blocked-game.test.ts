@@ -7,6 +7,7 @@ import {
   finishGameAction,
   updatePlayerScoresAction,
   checkBoardBlocked,
+  drawTileAction,
 } from '../src/engine/game-engine.js';
 import { DEFAULT_SETTINGS, PlayerState, DominoTile, PlacedTile, OpenEndInfo } from '../../shared/types.js';
 
@@ -108,7 +109,7 @@ describe('Manager Game Controls & Classic Blocked Game Flow', () => {
 
       const result = checkBoardBlocked(board, openEnds, privateHands, boneyard, true);
       expect(result.isBlocked).toBe(true);
-      expect(result.reason).toContain('All ends are 6 and all matching tiles are on the table');
+      expect(result.reason).toContain('All endings require 6, and all matching dominoes are on the table');
     });
 
     it('identifies general blocked game when neither hands nor boneyard can match any open end', () => {
@@ -134,7 +135,74 @@ describe('Manager Game Controls & Classic Blocked Game Flow', () => {
 
       const result = checkBoardBlocked(board, openEnds, privateHands, boneyard, true);
       expect(result.isBlocked).toBe(true);
-      expect(result.reason).toContain('No remaining tiles can match the open ends');
+      expect(result.reason).toContain('No player can put a correct tile on any ending');
+    });
+
+    it('identifies blocked game in All Fives with 4 endings when no player has a matching tile', () => {
+      // 4 open endings: 0, 2, 4, 5 on 4 branches
+      const board: PlacedTile[] = [
+        { id: 't-spinner', sideA: 6, sideB: 6, isDouble: true, x: 0, y: 0, rotation: 0, placedBy: 'p1' },
+        { id: 't-leaf-0', sideA: 6, sideB: 0, isDouble: false, x: 0, y: -80, rotation: 90, placedBy: 'p1' },
+        { id: 't-leaf-2', sideA: 6, sideB: 2, isDouble: false, x: 0, y: 80, rotation: 90, placedBy: 'p1' },
+        { id: 't-leaf-4', sideA: 6, sideB: 4, isDouble: false, x: -80, y: 0, rotation: 0, placedBy: 'p1' },
+        { id: 't-leaf-5', sideA: 6, sideB: 5, isDouble: false, x: 80, y: 0, rotation: 0, placedBy: 'p1' },
+      ];
+
+      const openEnds: OpenEndInfo[] = [
+        { tileId: 't-leaf-0', side: 'B', pipValue: 0, x: 0, y: -105 },
+        { tileId: 't-leaf-2', side: 'B', pipValue: 2, x: 0, y: 105 },
+        { tileId: 't-leaf-4', side: 'B', pipValue: 4, x: -105, y: 0 },
+        { tileId: 't-leaf-5', side: 'B', pipValue: 5, x: 105, y: 0 },
+      ];
+
+      // Players have tiles [1:3] and [3:3] -> cannot match 0, 2, 4, 5
+      const privateHands: Record<string, DominoTile[]> = {
+        'player-1': [{ id: 't-1-3', sideA: 1, sideB: 3, totalPips: 4, isDouble: false }],
+        'player-2': [{ id: 't-3-3', sideA: 3, sideB: 3, totalPips: 6, isDouble: true }],
+      };
+
+      // Boneyard empty (0 tiles left)
+      const boneyard: DominoTile[] = [];
+
+      const result = checkBoardBlocked(board, openEnds, privateHands, boneyard, true);
+      expect(result.isBlocked).toBe(true);
+      expect(result.reason).toContain('Game blocked in all 4 endings!');
+      expect(result.reason).toContain('No player can put a correct tile on any ending');
+    });
+
+    it('allows drawing from boneyard until 0 tiles remain in the draw pile', () => {
+      const players = createTestPlayers();
+      const session = startNewRound(
+        'ROOM-DRAW-TEST',
+        { ...DEFAULT_SETTINGS, allowDrawing: true, protectedBoneyardTiles: 0 },
+        players,
+        1,
+        undefined,
+        'player-1'
+      );
+
+      // Set boneyard to exactly 2 tiles to test drawing down through 1 to 0
+      session.boneyard = [
+        { id: 'b1', sideA: 0, sideB: 1, totalPips: 1, isDouble: false },
+        { id: 'b2', sideA: 2, sideB: 2, totalPips: 4, isDouble: true },
+      ];
+      session.state.boneyardCount = 2;
+      session.state.protectedBoneyardCount = 0;
+
+      // First draw -> 1 tile left
+      const draw1 = drawTileAction(session, 'player-1');
+      expect(draw1.success).toBe(true);
+      expect(session.state.boneyardCount).toBe(1);
+
+      // Second draw -> 0 tiles left in draw pile
+      const draw2 = drawTileAction(session, 'player-1');
+      expect(draw2.success).toBe(true);
+      expect(session.state.boneyardCount).toBe(0);
+
+      // Third draw -> should fail because draw pile is at 0
+      const draw3 = drawTileAction(session, 'player-1');
+      expect(draw3.success).toBe(false);
+      expect(draw3.error).toContain('Boneyard empty');
     });
 
     it('sets isBlocked and reveals hands when round is blocked via confirmTurnAction', () => {
@@ -202,3 +270,4 @@ describe('Manager Game Controls & Classic Blocked Game Flow', () => {
     });
   });
 });
+

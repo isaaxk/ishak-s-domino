@@ -42,7 +42,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   startingTileRule: 'free-starter',
   specificStartingTile: 'tile-0-0',
   protectedTiles: [],
-  protectedBoneyardTiles: 2,
+  protectedBoneyardTiles: 0, // 0 = draw until empty (stops at 0 tiles in draw pile)
   allowFreePlacement: true, // Physical table freedom enabled
   allowMultipleTilesPerTurn: false,
   showTileCounts: true, // Activated by default

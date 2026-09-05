@@ -25,7 +25,7 @@ export const RoundOverModal: React.FC<RoundOverModalProps> = ({
 
   // Manager score editing state
   const [editableScores, setEditableScores] = useState<Record<string, number>>({});
-  const [isEditingScores, setIsEditingScores] = useState<boolean>(false);
+  const [isEditingScores, setIsEditingScores] = useState<boolean>(Boolean(state.isBlocked && isHost));
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false);
 
   useEffect(() => {
@@ -34,7 +34,10 @@ export const RoundOverModal: React.FC<RoundOverModalProps> = ({
       initial[p.id] = p.score;
     }
     setEditableScores(initial);
-  }, [state.players]);
+    if (state.isBlocked && isHost) {
+      setIsEditingScores(true);
+    }
+  }, [state.players, state.isBlocked, isHost]);
 
   const handleScoreChange = (playerId: string, val: number) => {
     setEditableScores((prev) => ({
@@ -123,6 +126,16 @@ export const RoundOverModal: React.FC<RoundOverModalProps> = ({
               </button>
             )}
           </div>
+
+          {/* Blocked Game Notice */}
+          {state.isBlocked && (
+            <div className="p-2.5 rounded-xl bg-amber-950/60 border border-amber-500/40 text-amber-200 flex items-center justify-between gap-2">
+              <span className="font-semibold text-[11px]">
+                Game blocked across all ends! Remaining dominoes and exact pips are revealed for all players.
+                {isHost && ' You can edit each player’s points directly below.'}
+              </span>
+            </div>
+          )}
 
           {/* Players Hand Breakdowns */}
           <div className="flex flex-col gap-3">

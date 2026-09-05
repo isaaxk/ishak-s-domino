@@ -54,7 +54,8 @@ export const PlayerHandDock: React.FC<PlayerHandDockProps> = ({
   onDrawTile,
   onPassTurn,
 }) => {
-  const canDraw = allowDrawing && boneyardCount > protectedBoneyardCount && pendingPlacements.length === 0 && !isFreeStarterWaiting;
+  const effectiveProtectedCount = protectedBoneyardCount ?? 0;
+  const canDraw = allowDrawing && boneyardCount > effectiveProtectedCount && pendingPlacements.length === 0 && !isFreeStarterWaiting;
   const hasPending = pendingPlacements.length > 0;
   const potentialScore = gameType === 'all-fives' && currentOpenEndsSum > 0 && currentOpenEndsSum % 5 === 0
     ? currentOpenEndsSum

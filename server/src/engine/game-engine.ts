@@ -153,7 +153,7 @@ export function startNewRound(
     turnStartTime: Date.now(),
     board: [],
     boneyardCount: deal.boneyard.length,
-    protectedBoneyardCount: settings.protectedBoneyardTiles,
+    protectedBoneyardCount: settings.protectedBoneyardTiles ?? 0,
     consecutivePasses: 0,
     pendingPlacements: [],
     roundWinnerId: null,
@@ -178,10 +178,23 @@ export function startNewRound(
 }
 
 /**
+ * Resolves the actual face pip value that a new domino must match to connect to this open end.
+ * Accounts for crosswise doubles whose pipValue was summed as sideA + sideB for All Fives scoring.
+ */
+function getOpenEndConnectablePip(end: OpenEndInfo, board: PlacedTile[]): number {
+  const tile = board.find((t) => t.id === end.tileId);
+  if (tile && tile.isDouble) {
+    return tile.sideA;
+  }
+  return end.pipValue;
+}
+
+/**
  * Determines whether the board has become blocked.
+ * Handles both classic 2-ended boards and All Fives boards with 4 active endings.
  * Specifically checks:
- * 1. If all open ends have value V and all tiles in the set containing V are already on the board.
- * 2. If no player in the room holds a tile matching ANY open end, AND the boneyard contains no tile matching ANY open end.
+ * 1. If all open ends require value V and all tiles in the set containing V are already on the board.
+ * 2. If no player in the room holds a tile matching ANY open ending, AND the draw pile contains no matching tile.
  */
 export function checkBoardBlocked(
   board: PlacedTile[],
@@ -194,10 +207,12 @@ export function checkBoardBlocked(
     return { isBlocked: false };
   }
 
-  const openValues = new Set(openEnds.map((e) => e.pipValue));
+  // Resolve the connectable domino face value for every open ending (up to 4 in All Fives)
+  const connectablePips = openEnds.map((e) => getOpenEndConnectablePip(e, board));
+  const openValues = new Set(connectablePips);
 
-  // Case 1: All open ends end with the exact same number V, and all tiles with V are already on the table
-  // (e.g., both ends are 6, and all seven 6s are placed)
+  // Case 1: All open ends (e.g. all 4 ends or 2 ends) end with the exact same number V,
+  // and all tiles with V are already on the table (e.g. all seven 6s are placed)
   if (openValues.size === 1) {
     const singleVal = Array.from(openValues)[0];
     const existsInHands = Object.values(privateHands).some((hand) =>
@@ -210,12 +225,13 @@ export function checkBoardBlocked(
     if (!existsInHands && !existsInBoneyard) {
       return {
         isBlocked: true,
-        reason: `Game blocked! All ends are ${singleVal} and all matching tiles are on the table.`,
+        reason: `Game blocked in all ${openEnds.length} ends! All endings require ${singleVal}, and all matching dominoes are on the table.`,
       };
     }
   }
 
-  // Case 2: General block: No playable tile in any hand, and boneyard cannot provide a playable tile
+  // Case 2: General block: No playable tile in ANY player's hand for ANY of the endings,
+  // and the draw pile cannot provide a playable tile (either empty with 0 tiles or contains no matching tiles)
   const playableInHand = Object.values(privateHands).some((hand) =>
     hand.some((t) => openValues.has(t.sideA) || openValues.has(t.sideB))
   );
@@ -226,10 +242,10 @@ export function checkBoardBlocked(
       boneyard.some((t) => openValues.has(t.sideA) || openValues.has(t.sideB));
 
     if (!playableInBoneyard) {
-      const endsStr = Array.from(openValues).join(', ');
+      const endsStr = Array.from(openValues).sort((a, b) => a - b).join(', ');
       return {
         isBlocked: true,
-        reason: `Game blocked! No remaining tiles can match the open ends (${endsStr}).`,
+        reason: `Game blocked in all ${openEnds.length} endings! No player can put a correct tile on any ending (${endsStr}), and the draw pile has no matching dominoes.`,
       };
     }
   }
@@ -578,7 +594,7 @@ export function drawTileAction(
     return { success: false, error: 'You have staged tiles. Undo them first before drawing' };
   }
 
-  const drawResult = drawFromBoneyard(boneyard, state.settings.protectedBoneyardTiles);
+  const drawResult = drawFromBoneyard(boneyard, state.settings.protectedBoneyardTiles ?? 0);
   if (!drawResult.tile) {
     return { success: false, error: drawResult.error || 'Boneyard empty' };
   }
@@ -658,8 +674,16 @@ export function passTurnAction(
     timestamp: Date.now(),
   };
 
-  // Blocked game condition: every active player passed consecutively
-  if (state.consecutivePasses >= state.players.length) {
+  // Blocked game condition: every active player passed consecutively, OR no player can move/draw
+  const blockCheck = checkBoardBlocked(
+    state.board,
+    state.openEnds || [],
+    privateHands,
+    session.boneyard,
+    state.settings.allowDrawing
+  );
+
+  if (state.consecutivePasses >= state.players.length || blockCheck.isBlocked) {
     const blockedEval = evaluateBlockedRound(
       state.players.map((p) => p.id),
       privateHands
@@ -667,7 +691,9 @@ export function passTurnAction(
 
     state.phase = 'round_finished';
     state.isBlocked = true;
-    state.blockedReason = 'All players passed consecutively — round blocked.';
+    state.blockedReason = blockCheck.isBlocked
+      ? blockCheck.reason
+      : 'All players passed consecutively — round blocked.';
     state.roundWinnerId = blockedEval.winnerId;
     state.revealedHands = { ...privateHands };
     session.lastPass = null;

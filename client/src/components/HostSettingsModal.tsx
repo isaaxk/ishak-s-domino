@@ -251,13 +251,13 @@ export const HostSettingsModal: React.FC<HostSettingsModalProps> = ({
             <div className="flex flex-col gap-1.5">
               <label className="font-semibold text-slate-300">Protected Boneyard</label>
               <select
-                value={form.protectedBoneyardTiles}
+                value={form.protectedBoneyardTiles ?? 0}
                 onChange={(e) => setForm({ ...form, protectedBoneyardTiles: Number(e.target.value) })}
                 className="bg-slate-800 border border-slate-700 rounded-xl p-2 text-white font-medium"
               >
-                <option value={2}>2 Tiles (Traditional)</option>
-                <option value={0}>0 Tiles (Draw All)</option>
+                <option value={0}>0 Tiles (Draw All until Empty - Default)</option>
                 <option value={1}>1 Tile</option>
+                <option value={2}>2 Tiles</option>
               </select>
             </div>
           </div>
