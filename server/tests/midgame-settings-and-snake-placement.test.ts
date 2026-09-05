@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { DominoDatabase } from '../src/db/database.js';
 import { RoomManager } from '../src/sockets/room-manager.js';
 import { placeTileOnBoard, TILE_GAP } from '../src/engine/board.js';
@@ -96,7 +96,7 @@ describe('Mid-Game Settings & Domino Snake/Corner Placement', () => {
       const placed = turnUp.placedTile;
       expect(placed.x).toBe(20);
       expect(placed.y).toBe(-63);
-      expect(placed.rotation).toBe(90);
+      expect(placed.rotation).toBe(270); // Auto-matched so sideA (2) touches root tile sideB (2) at bottom
       expect(placed.attachedToId).toBe('tile-6-2');
 
       // Zero overlap: root top edge is -20, placed bottom edge is -63 + 40 = -23
@@ -172,7 +172,7 @@ describe('Mid-Game Settings & Domino Snake/Corner Placement', () => {
       });
       expect(topPlacement.placedTile.x).toBe(20);
       expect(topPlacement.placedTile.y).toBe(-146);
-      expect(topPlacement.placedTile.rotation).toBe(90);
+      expect(topPlacement.placedTile.rotation).toBe(270); // Auto-matched so sideA (5) connects to base tile top (5)
 
       // 4. From the top tile at (20, -146), turn left!
       const snakeLeft = placeTileOnBoard(topPlacement.newBoard, tileHorizontal, 'p2', 1, 3, {
@@ -186,6 +186,95 @@ describe('Mid-Game Settings & Domino Snake/Corner Placement', () => {
 
       // Zero overlap: top tile left edge is 0, placed snake right edge is -43 + 40 = -3
       expect(placedSnake.x + 40).toBe(0 - TILE_GAP);
+    });
+
+    it('matches pips by default (e.g. 4 with 4) when placing domino 4:3 or 3:4', () => {
+      // Table base tile has 4 on the exposed right side
+      const baseTile: PlacedTile = {
+        id: 'base-tile',
+        sideA: 6,
+        sideB: 4,
+        totalPips: 10,
+        isDouble: false,
+        x: 0,
+        y: 0,
+        rotation: 0, // sideA (6) left, sideB (4) right
+        placedBy: 'p1',
+        turnNumber: 1,
+        stepIndex: 0,
+        placementSide: 'free',
+      };
+
+      const tile43: DominoTile = { id: 't-4-3', sideA: 4, sideB: 3, totalPips: 7, isDouble: false };
+      const tile34: DominoTile = { id: 't-3-4', sideA: 3, sideB: 4, totalPips: 7, isDouble: false };
+
+      // Connecting to right: touching half is left.
+      // tile43 (sideA=4) touching side should be 4 -> rot 0
+      const res43 = placeTileOnBoard([baseTile], tile43, 'p2', 1, 1, {
+        placementSide: 'right',
+        attachedToId: 'base-tile',
+      });
+      expect(res43.placedTile.rotation).toBe(0);
+
+      // tile34 (sideB=4) touching side should be 4 -> rot 180 (so sideB is left)
+      const res34 = placeTileOnBoard([baseTile], tile34, 'p2', 1, 1, {
+        placementSide: 'right',
+        attachedToId: 'base-tile',
+      });
+      expect(res34.placedTile.rotation).toBe(180);
+
+      // Connecting to left (baseTile sideA is 6):
+      const tile65: DominoTile = { id: 't-6-5', sideA: 6, sideB: 5, totalPips: 11, isDouble: false };
+      const tile56: DominoTile = { id: 't-5-6', sideA: 5, sideB: 6, totalPips: 11, isDouble: false };
+      // tile65: sideA is 6, touching half is right -> rot 180 (so sideA is right)
+      const res65 = placeTileOnBoard([baseTile], tile65, 'p2', 1, 1, {
+        placementSide: 'left',
+        attachedToId: 'base-tile',
+      });
+      expect(res65.placedTile.rotation).toBe(180);
+
+      // tile56: sideB is 6, touching half is right -> rot 0 (so sideB is right)
+      const res56 = placeTileOnBoard([baseTile], tile56, 'p2', 1, 1, {
+        placementSide: 'left',
+        attachedToId: 'base-tile',
+      });
+      expect(res56.placedTile.rotation).toBe(0);
+    });
+
+    it('defaults double tiles to vertical (rotation: 90) by default', () => {
+      const double4: DominoTile = { id: 't-4-4', sideA: 4, sideB: 4, totalPips: 8, isDouble: true };
+
+      // 1. First tile on empty board
+      const firstPlacement = placeTileOnBoard([], double4, 'p1', 1, 0);
+      expect(firstPlacement.placedTile.rotation).toBe(90);
+
+      // 2. Attached to right of an existing tile
+      const baseTile: PlacedTile = {
+        id: 'base-tile',
+        sideA: 6,
+        sideB: 4,
+        totalPips: 10,
+        isDouble: false,
+        x: 0,
+        y: 0,
+        rotation: 0,
+        placedBy: 'p1',
+        turnNumber: 1,
+        stepIndex: 0,
+        placementSide: 'free',
+      };
+      const doublePlacementRight = placeTileOnBoard([baseTile], double4, 'p2', 1, 1, {
+        placementSide: 'right',
+        attachedToId: 'base-tile',
+      });
+      expect(doublePlacementRight.placedTile.rotation).toBe(90);
+
+      // 3. Attached to left
+      const doublePlacementLeft = placeTileOnBoard([baseTile], double4, 'p2', 1, 1, {
+        placementSide: 'left',
+        attachedToId: 'base-tile',
+      });
+      expect(doublePlacementLeft.placedTile.rotation).toBe(90);
     });
   });
 });

@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import type { PlacedTile, DominoTile, PlacementSide, OpenEndInfo } from '../../../shared/types.js';
+import { getMatchingRotation, type PlacedTile, type DominoTile, type PlacementSide, type OpenEndInfo } from '../../../shared/types.js';
 import { DominoTileView } from './DominoTileView.js';
 import {
   ZoomIn,
@@ -17,6 +17,7 @@ import {
   RotateCw,
   Check,
   Undo2,
+  X,
   Sparkles,
   Edit3,
 } from 'lucide-react';
@@ -69,6 +70,14 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
 
   // Drag over target state for highlighting
   const [activeDropZone, setActiveDropZone] = useState<PlacementSide | 'center' | null>(null);
+
+  // Two-step placement state: Step 1 (null: show 4 position buttons), Step 2 ('left'|'right'|'top'|'bottom': show direction options)
+  const [selectedPosition, setSelectedPosition] = useState<'left' | 'right' | 'top' | 'bottom' | null>(null);
+
+  // Reset selected position when tile changes or placement is staged
+  useEffect(() => {
+    setSelectedPosition(null);
+  }, [selectedTile?.id, pendingPlacements.length]);
 
   // Touch pinch-to-zoom tracking
   const [touchDistance, setTouchDistance] = useState<number | null>(null);
@@ -300,8 +309,79 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
     return { side: 'right' as PlacementSide, attachedToId: undefined, rotation: selectedRotation };
   };
 
+  // Two-step direction placement handler: places tile with automatic matching rotation
+  const handlePlaceDirection = (placementSide: PlacementSide) => {
+    if (!selectedTile) return;
+
+    let baseTile: PlacedTile | null = null;
+    let isLeftOrTop = false;
+
+    switch (placementSide) {
+      case 'left':
+        baseTile = leftMost;
+        isLeftOrTop = true;
+        break;
+      case 'right':
+        baseTile = rightMost;
+        isLeftOrTop = false;
+        break;
+      case 'turn-up':
+      case 'turn-down':
+        if (selectedPosition === 'left') {
+          baseTile = leftMost;
+          isLeftOrTop = true;
+        } else {
+          baseTile = rightMost;
+          isLeftOrTop = false;
+        }
+        break;
+      case 'top':
+        baseTile = topMost;
+        isLeftOrTop = true;
+        break;
+      case 'bottom':
+        baseTile = bottomMost;
+        isLeftOrTop = false;
+        break;
+      case 'turn-left':
+      case 'turn-right':
+        if (selectedPosition === 'top') {
+          baseTile = topMost;
+          isLeftOrTop = true;
+        } else {
+          baseTile = bottomMost;
+          isLeftOrTop = false;
+        }
+        break;
+      default:
+        baseTile = rightMost;
+    }
+
+    const rot = getMatchingRotation(
+      selectedTile,
+      placementSide,
+      baseTile || undefined,
+      isLeftOrTop
+    );
+
+    onPlaceTile({
+      tileId: selectedTile.id,
+      x: 0,
+      y: 0,
+      rotation: rot,
+      placementSide,
+      attachedToId: baseTile?.id,
+    });
+
+    setSelectedPosition(null);
+  };
+
   // Smart snap placement on clicking felt table
   const handleTableClick = (e: React.MouseEvent) => {
+    if (selectedPosition !== null) {
+      setSelectedPosition(null);
+      return;
+    }
     if (!selectedTile || !isMyTurn || isDragging) return;
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -310,11 +390,15 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
     const clickY = (e.clientY - rect.top - rect.height / 2 - pan.y) / zoom;
 
     const snap = findBestSnapTarget(clickX, clickY);
+    const baseTile = allTiles.find((t) => t.id === snap.attachedToId);
+    const isLeftOrTop = snap.side === 'left' || snap.side === 'top' || (snap.side === 'turn-up' && baseTile?.id === leftMost?.id);
+    const rot = getMatchingRotation(selectedTile, snap.side, baseTile, isLeftOrTop);
+
     onPlaceTile({
       tileId: selectedTile.id,
       x: 0,
       y: 0,
-      rotation: snap.rotation,
+      rotation: rot,
       placementSide: snap.side,
       attachedToId: snap.attachedToId,
     });
@@ -331,7 +415,7 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
     if (!isMyTurn) return;
     e.preventDefault();
     const tileId = e.dataTransfer.getData('text/plain') || selectedTile?.id;
-    if (!tileId) return;
+    if (!tileId || !selectedTile) return;
 
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -340,11 +424,15 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
     const clickY = (e.clientY - rect.top - rect.height / 2 - pan.y) / zoom;
 
     const snap = findBestSnapTarget(clickX, clickY);
+    const baseTile = allTiles.find((t) => t.id === snap.attachedToId);
+    const isLeftOrTop = snap.side === 'left' || snap.side === 'top' || (snap.side === 'turn-up' && baseTile?.id === leftMost?.id);
+    const rot = getMatchingRotation(selectedTile, snap.side, baseTile, isLeftOrTop);
+
     onPlaceTile({
       tileId,
       x: 0,
       y: 0,
-      rotation: snap.rotation,
+      rotation: rot,
       placementSide: snap.side,
       attachedToId: snap.attachedToId,
     });
@@ -354,16 +442,17 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
   const handleDropOnSide = (
     e: React.DragEvent,
     side: PlacementSide,
-    attachedToId?: string,
-    forcedRotation?: number
+    attachedToId?: string
   ) => {
-    if (!isMyTurn) return;
+    if (!isMyTurn || !selectedTile) return;
     e.preventDefault();
     e.stopPropagation();
-    const tileId = e.dataTransfer.getData('text/plain') || selectedTile?.id;
-    if (!tileId) return;
+    const tileId = e.dataTransfer.getData('text/plain') || selectedTile.id;
 
-    const rot = forcedRotation !== undefined ? forcedRotation : (side === 'top' || side === 'bottom' ? 90 : selectedRotation);
+    const baseTile = allTiles.find((t) => t.id === attachedToId);
+    const isLeftOrTop = side === 'left' || side === 'top';
+    const rot = getMatchingRotation(selectedTile, side, baseTile, isLeftOrTop);
+
     onPlaceTile({
       tileId,
       x: 0,
@@ -373,6 +462,7 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
       attachedToId,
     });
     setActiveDropZone(null);
+    setSelectedPosition(null);
   };
 
   return (
@@ -499,28 +589,11 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
                       const nextRot = (tile.rotation + 90) % 360;
                       onRotatePendingTile?.(tile.id, nextRot);
                     }}
-                    className="flex items-center gap-1 px-2.5 py-1.5 bg-amber-600 hover:bg-amber-500 active:scale-95 text-white text-xs font-black rounded-xl shadow transition"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-500 active:scale-95 text-white text-xs font-black rounded-xl shadow transition"
                     title="Rotate 90 degrees"
                   >
                     <RotateCw size={14} /> Rotate ({tile.rotation}°)
                   </button>
-
-                  {/* 4 Direct Orientation Buttons (0°, 90°, 180°, 270°) */}
-                  <div className="flex items-center bg-slate-800 rounded-xl p-0.5 border border-slate-700">
-                    {[0, 90, 180, 270].map((deg) => (
-                      <button
-                        key={deg}
-                        onClick={() => onRotatePendingTile?.(tile.id, deg)}
-                        className={`px-1.5 py-1 text-[10px] font-bold rounded-lg transition ${
-                          tile.rotation === deg
-                            ? 'bg-emerald-600 text-white font-black'
-                            : 'text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        {deg}°
-                      </button>
-                    ))}
-                  </div>
 
                   {/* Undo Move Button */}
                   {onUndoTurn && (
@@ -578,7 +651,7 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
                     tileId: selectedTile.id,
                     x: 0,
                     y: 0,
-                    rotation: selectedRotation,
+                    rotation: selectedTile.isDouble ? 90 : selectedRotation,
                     placementSide: 'free',
                   });
                 }}
@@ -593,7 +666,7 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
                     tileId: selectedTile.id,
                     x: 0,
                     y: 0,
-                    rotation: selectedRotation,
+                    rotation: selectedTile.isDouble ? 90 : selectedRotation,
                     placementSide: 'free',
                   });
                   setActiveDropZone(null);
@@ -609,9 +682,9 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
                 </div>
               </div>
             ) : (
-              /* The 4 Placement Sides: Left, Right, Top, Bottom (Non-overlapping) */
+              /* The 4 Placement Sides: Left, Right, Top, Bottom (Non-overlapping 2-Step Placement) */
               <>
-                {/* ⬅️ 1. Left Side Target & Turns */}
+                {/* ⬅️ 1. Left Side Target & Directions */}
                 {leftMost && (
                   <div
                     className="absolute -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-auto flex flex-col items-center gap-1.5"
@@ -620,72 +693,73 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
                       top: `${leftMost.y}px`,
                     }}
                   >
-                    {/* Straight Left */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onPlaceTile({
-                          tileId: selectedTile.id,
-                          x: 0,
-                          y: 0,
-                          rotation: selectedRotation,
-                          placementSide: 'left',
-                          attachedToId: leftMost.id,
-                        });
-                      }}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        setActiveDropZone('left');
-                      }}
-                      onDrop={(e) => handleDropOnSide(e, 'left', leftMost.id, selectedRotation)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-2xl border-2 border-emerald-300 transition-all hover:scale-105 active:scale-95 ${
-                        activeDropZone === 'left' ? 'scale-110 ring-2 ring-emerald-300' : ''
-                      }`}
-                    >
-                      <ArrowLeft size={15} /> Put Left
-                    </button>
-
-                    {/* Left Corner / Turn Options */}
-                    <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-teal-500/40 shadow-xl backdrop-blur">
+                    {selectedPosition === 'left' ? (
+                      /* Step 2: Show directions (Straight, Up, Down, Cancel) */
+                      <div className="flex items-center gap-1.5 bg-slate-900/95 p-1.5 rounded-2xl border-2 border-emerald-400 shadow-2xl backdrop-blur animate-bounce-short z-50 whitespace-nowrap">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePlaceDirection('left');
+                          }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow active:scale-95 transition"
+                          title="Straight Left"
+                        >
+                          <ArrowLeft size={14} /> Straight
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePlaceDirection('turn-up');
+                          }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-black shadow active:scale-95 transition"
+                          title="Turn Up"
+                        >
+                          <CornerUpLeft size={14} /> ↰ Up
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePlaceDirection('turn-down');
+                          }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-black shadow active:scale-95 transition"
+                          title="Turn Down"
+                        >
+                          <CornerDownLeft size={14} /> ↲ Down
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedPosition(null);
+                          }}
+                          className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white active:scale-95 transition"
+                          title="Back / Cancel"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ) : (
+                      /* Step 1: Show position button only */
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          onPlaceTile({
-                            tileId: selectedTile.id,
-                            x: 0,
-                            y: 0,
-                            rotation: 90,
-                            placementSide: 'turn-up',
-                            attachedToId: leftMost.id,
-                          });
+                          setSelectedPosition('left');
                         }}
-                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-[11px] font-bold shadow border border-teal-400/50 transition-all hover:scale-105 active:scale-95"
-                        title="Turn Up (Snake corner)"
-                      >
-                        <CornerUpLeft size={13} /> ↰ Up
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onPlaceTile({
-                            tileId: selectedTile.id,
-                            x: 0,
-                            y: 0,
-                            rotation: 90,
-                            placementSide: 'turn-down',
-                            attachedToId: leftMost.id,
-                          });
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          setActiveDropZone('left');
                         }}
-                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-[11px] font-bold shadow border border-teal-400/50 transition-all hover:scale-105 active:scale-95"
-                        title="Turn Down (Snake corner)"
+                        onDrop={(e) => handleDropOnSide(e, 'left', leftMost.id)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-2xl border-2 border-emerald-300 transition-all hover:scale-105 active:scale-95 ${
+                          activeDropZone === 'left' ? 'scale-110 ring-2 ring-emerald-300' : ''
+                        }`}
                       >
-                        <CornerDownLeft size={13} /> ↲ Down
+                        <ArrowLeft size={15} /> Put Left
                       </button>
-                    </div>
+                    )}
                   </div>
                 )}
 
-                {/* ➡️ 2. Right Side Target & Turns */}
+                {/* ➡️ 2. Right Side Target & Directions */}
                 {rightMost && (
                   <div
                     className="absolute -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-auto flex flex-col items-center gap-1.5"
@@ -694,73 +768,74 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
                       top: `${rightMost.y}px`,
                     }}
                   >
-                    {/* Straight Right */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onPlaceTile({
-                          tileId: selectedTile.id,
-                          x: 0,
-                          y: 0,
-                          rotation: selectedRotation,
-                          placementSide: 'right',
-                          attachedToId: rightMost.id,
-                        });
-                      }}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        setActiveDropZone('right');
-                      }}
-                      onDrop={(e) => handleDropOnSide(e, 'right', rightMost.id, selectedRotation)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-2xl border-2 border-emerald-300 transition-all hover:scale-105 active:scale-95 ${
-                        activeDropZone === 'right' ? 'scale-110 ring-2 ring-emerald-300' : ''
-                      }`}
-                    >
-                      Put Right <ArrowRight size={15} />
-                    </button>
-
-                    {/* Right Corner / Turn Options */}
-                    <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-teal-500/40 shadow-xl backdrop-blur">
+                    {selectedPosition === 'right' ? (
+                      /* Step 2: Show directions (Straight, Up, Down, Cancel) */
+                      <div className="flex items-center gap-1.5 bg-slate-900/95 p-1.5 rounded-2xl border-2 border-emerald-400 shadow-2xl backdrop-blur animate-bounce-short z-50 whitespace-nowrap">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePlaceDirection('right');
+                          }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow active:scale-95 transition"
+                          title="Straight Right"
+                        >
+                          Straight <ArrowRight size={14} />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePlaceDirection('turn-up');
+                          }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-black shadow active:scale-95 transition"
+                          title="Turn Up"
+                        >
+                          <CornerUpRight size={14} /> ↱ Up
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePlaceDirection('turn-down');
+                          }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-black shadow active:scale-95 transition"
+                          title="Turn Down"
+                        >
+                          <CornerDownRight size={14} /> ↳ Down
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedPosition(null);
+                          }}
+                          className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white active:scale-95 transition"
+                          title="Back / Cancel"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ) : (
+                      /* Step 1: Show position button only */
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          onPlaceTile({
-                            tileId: selectedTile.id,
-                            x: 0,
-                            y: 0,
-                            rotation: 90,
-                            placementSide: 'turn-up',
-                            attachedToId: rightMost.id,
-                          });
+                          setSelectedPosition('right');
                         }}
-                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-[11px] font-bold shadow border border-teal-400/50 transition-all hover:scale-105 active:scale-95"
-                        title="Turn Up (Snake corner)"
-                      >
-                        <CornerUpRight size={13} /> ↱ Up
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onPlaceTile({
-                            tileId: selectedTile.id,
-                            x: 0,
-                            y: 0,
-                            rotation: 90,
-                            placementSide: 'turn-down',
-                            attachedToId: rightMost.id,
-                          });
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          setActiveDropZone('right');
                         }}
-                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-[11px] font-bold shadow border border-teal-400/50 transition-all hover:scale-105 active:scale-95"
-                        title="Turn Down (Snake corner)"
+                        onDrop={(e) => handleDropOnSide(e, 'right', rightMost.id)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-2xl border-2 border-emerald-300 transition-all hover:scale-105 active:scale-95 ${
+                          activeDropZone === 'right' ? 'scale-110 ring-2 ring-emerald-300' : ''
+                        }`}
                       >
-                        <CornerDownRight size={13} /> ↳ Down
+                        Put Right <ArrowRight size={15} />
                       </button>
-                    </div>
+                    )}
                   </div>
                 )}
 
-                {/* ⬆️ 3. Top Side Target & Turns */}
-                {topMost && (gameType === 'all-fives' || topMost.y < ((leftMost?.y ?? 0) + (rightMost?.y ?? 0)) / 2 - 20) && (
+                {/* ⬆️ 3. Top Side Target & Directions */}
+                {topMost && (gameType === 'all-fives' || topMost.y < ((leftMost?.y ?? 0) + (rightMost?.y ?? 0)) / 2 - 20 || allTiles.length === 1) && (
                   <div
                     className="absolute -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-auto flex flex-col items-center gap-1.5"
                     style={{
@@ -768,73 +843,74 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
                       top: `${topMost.y - ((topMost.rotation === 90 || topMost.rotation === 270 ? 80 : 40) / 2) - 55}px`,
                     }}
                   >
-                    {/* Straight Top */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onPlaceTile({
-                          tileId: selectedTile.id,
-                          x: 0,
-                          y: 0,
-                          rotation: 90,
-                          placementSide: 'top',
-                          attachedToId: topMost.id,
-                        });
-                      }}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        setActiveDropZone('top');
-                      }}
-                      onDrop={(e) => handleDropOnSide(e, 'top', topMost.id, 90)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-black shadow-2xl border-2 border-emerald-300 transition-all hover:scale-105 active:scale-95 ${
-                        activeDropZone === 'top' ? 'scale-110 ring-2 ring-emerald-300' : ''
-                      }`}
-                    >
-                      <ArrowUp size={15} /> Put Top
-                    </button>
-
-                    {/* Top Corner / Turn Options */}
-                    <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-teal-500/40 shadow-xl backdrop-blur">
+                    {selectedPosition === 'top' ? (
+                      /* Step 2: Show directions (Straight, Left, Right, Cancel) */
+                      <div className="flex items-center gap-1.5 bg-slate-900/95 p-1.5 rounded-2xl border-2 border-emerald-400 shadow-2xl backdrop-blur animate-bounce-short z-50 whitespace-nowrap">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePlaceDirection('top');
+                          }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-black shadow active:scale-95 transition"
+                          title="Straight Top"
+                        >
+                          <ArrowUp size={14} /> Straight
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePlaceDirection('turn-left');
+                          }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-black shadow active:scale-95 transition"
+                          title="Turn Left"
+                        >
+                          <CornerUpLeft size={14} /> ↰ Left
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePlaceDirection('turn-right');
+                          }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-black shadow active:scale-95 transition"
+                          title="Turn Right"
+                        >
+                          <CornerUpRight size={14} /> ↱ Right
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedPosition(null);
+                          }}
+                          className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white active:scale-95 transition"
+                          title="Back / Cancel"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ) : (
+                      /* Step 1: Show position button only */
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          onPlaceTile({
-                            tileId: selectedTile.id,
-                            x: 0,
-                            y: 0,
-                            rotation: 0,
-                            placementSide: 'turn-left',
-                            attachedToId: topMost.id,
-                          });
+                          setSelectedPosition('top');
                         }}
-                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-[11px] font-bold shadow border border-teal-400/50 transition-all hover:scale-105 active:scale-95"
-                        title="Turn Left (Snake corner)"
-                      >
-                        <CornerUpLeft size={13} /> ↰ Left
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onPlaceTile({
-                            tileId: selectedTile.id,
-                            x: 0,
-                            y: 0,
-                            rotation: 0,
-                            placementSide: 'turn-right',
-                            attachedToId: topMost.id,
-                          });
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          setActiveDropZone('top');
                         }}
-                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-[11px] font-bold shadow border border-teal-400/50 transition-all hover:scale-105 active:scale-95"
-                        title="Turn Right (Snake corner)"
+                        onDrop={(e) => handleDropOnSide(e, 'top', topMost.id)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-black shadow-2xl border-2 border-emerald-300 transition-all hover:scale-105 active:scale-95 ${
+                          activeDropZone === 'top' ? 'scale-110 ring-2 ring-emerald-300' : ''
+                        }`}
                       >
-                        <CornerUpRight size={13} /> ↱ Right
+                        <ArrowUp size={15} /> Put Top
                       </button>
-                    </div>
+                    )}
                   </div>
                 )}
 
-                {/* ⬇️ 4. Bottom Side Target & Turns */}
-                {bottomMost && (gameType === 'all-fives' || bottomMost.y > ((leftMost?.y ?? 0) + (rightMost?.y ?? 0)) / 2 + 20) && (
+                {/* ⬇️ 4. Bottom Side Target & Directions */}
+                {bottomMost && (gameType === 'all-fives' || bottomMost.y > ((leftMost?.y ?? 0) + (rightMost?.y ?? 0)) / 2 + 20 || allTiles.length === 1) && (
                   <div
                     className="absolute -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-auto flex flex-col items-center gap-1.5"
                     style={{
@@ -842,68 +918,69 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
                       top: `${bottomMost.y + ((bottomMost.rotation === 90 || bottomMost.rotation === 270 ? 80 : 40) / 2) + 55}px`,
                     }}
                   >
-                    {/* Straight Bottom */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onPlaceTile({
-                          tileId: selectedTile.id,
-                          x: 0,
-                          y: 0,
-                          rotation: 90,
-                          placementSide: 'bottom',
-                          attachedToId: bottomMost.id,
-                        });
-                      }}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        setActiveDropZone('bottom');
-                      }}
-                      onDrop={(e) => handleDropOnSide(e, 'bottom', bottomMost.id, 90)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-black shadow-2xl border-2 border-emerald-300 transition-all hover:scale-105 active:scale-95 ${
-                        activeDropZone === 'bottom' ? 'scale-110 ring-2 ring-emerald-300' : ''
-                      }`}
-                    >
-                      Put Bottom <ArrowDown size={15} />
-                    </button>
-
-                    {/* Bottom Corner / Turn Options */}
-                    <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-teal-500/40 shadow-xl backdrop-blur">
+                    {selectedPosition === 'bottom' ? (
+                      /* Step 2: Show directions (Straight, Left, Right, Cancel) */
+                      <div className="flex items-center gap-1.5 bg-slate-900/95 p-1.5 rounded-2xl border-2 border-emerald-400 shadow-2xl backdrop-blur animate-bounce-short z-50 whitespace-nowrap">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePlaceDirection('bottom');
+                          }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-black shadow active:scale-95 transition"
+                          title="Straight Bottom"
+                        >
+                          Straight <ArrowDown size={14} />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePlaceDirection('turn-left');
+                          }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-black shadow active:scale-95 transition"
+                          title="Turn Left"
+                        >
+                          <CornerDownLeft size={14} /> ↲ Left
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePlaceDirection('turn-right');
+                          }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-black shadow active:scale-95 transition"
+                          title="Turn Right"
+                        >
+                          <CornerDownRight size={14} /> ↳ Right
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedPosition(null);
+                          }}
+                          className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white active:scale-95 transition"
+                          title="Back / Cancel"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ) : (
+                      /* Step 1: Show position button only */
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          onPlaceTile({
-                            tileId: selectedTile.id,
-                            x: 0,
-                            y: 0,
-                            rotation: 0,
-                            placementSide: 'turn-left',
-                            attachedToId: bottomMost.id,
-                          });
+                          setSelectedPosition('bottom');
                         }}
-                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-[11px] font-bold shadow border border-teal-400/50 transition-all hover:scale-105 active:scale-95"
-                        title="Turn Left (Snake corner)"
-                      >
-                        <CornerDownLeft size={13} /> ↲ Left
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onPlaceTile({
-                            tileId: selectedTile.id,
-                            x: 0,
-                            y: 0,
-                            rotation: 0,
-                            placementSide: 'turn-right',
-                            attachedToId: bottomMost.id,
-                          });
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          setActiveDropZone('bottom');
                         }}
-                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-[11px] font-bold shadow border border-teal-400/50 transition-all hover:scale-105 active:scale-95"
-                        title="Turn Right (Snake corner)"
+                        onDrop={(e) => handleDropOnSide(e, 'bottom', bottomMost.id)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-black shadow-2xl border-2 border-emerald-300 transition-all hover:scale-105 active:scale-95 ${
+                          activeDropZone === 'bottom' ? 'scale-110 ring-2 ring-emerald-300' : ''
+                        }`}
                       >
-                        <CornerDownRight size={13} /> ↳ Right
+                        Put Bottom <ArrowDown size={15} />
                       </button>
-                    </div>
+                    )}
                   </div>
                 )}
               </>
@@ -932,7 +1009,9 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 pointer-events-none animate-fadeIn">
           <div className="px-4 py-2 rounded-full bg-neutral-900/90 border border-emerald-500/50 text-emerald-300 text-xs font-bold shadow-2xl text-center backdrop-blur flex items-center gap-2">
             <Sparkles size={14} className="text-amber-400" />
-            Drag & drop or tap: Left, Right, Top, Bottom, or Turns (↰ ↱ ↲ ↳)
+            {selectedPosition
+              ? `Step 2: Choose direction for ${selectedPosition.toUpperCase()} (Straight or Turn)`
+              : 'Step 1: Choose position (Put Left, Put Right, Put Top, Put Bottom)'}
           </div>
         </div>
       )}

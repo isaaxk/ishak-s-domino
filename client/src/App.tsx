@@ -582,7 +582,14 @@ export function App() {
             currentOpenEndsSum={gameState.currentOpenEndsSum}
             onSelectTile={(tile) => {
               setSelectedTile(tile);
-              if (tile) playSound('click');
+              if (tile) {
+                if (tile.isDouble) {
+                  setSelectedRotation(90);
+                } else {
+                  setSelectedRotation(0);
+                }
+                playSound('click');
+              }
             }}
             onRotateTile={handleRotateTile}
             onConfirmTurn={handleConfirmTurn}

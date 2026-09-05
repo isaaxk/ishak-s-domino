@@ -268,3 +268,100 @@ export interface ServerToClientEvents {
   'player:kicked': (payload: { reason: string }) => void;
   'error:notification': (payload: { message: string }) => void;
 }
+
+/**
+ * Calculates the default matching rotation for a domino tile when placed
+ * against a base tile on the board.
+ * - Double tiles always default to vertical (90°)
+ * - Non-double tiles are oriented so the touching half matches the exposed pip value
+ *   of the base tile (e.g. if table end has 4, tile [4|3] connects 4 to 4).
+ */
+export function getMatchingRotation(
+  tile: DominoTile,
+  placementSide: PlacementSide,
+  baseTile?: PlacedTile,
+  isLeftOrTopEnd?: boolean
+): number {
+  // 1. Double tiles: put the tile vertically by default (90°)
+  if (tile.isDouble) {
+    return 90;
+  }
+
+  if (!baseTile) {
+    return 0;
+  }
+
+  const isBaseVertical = baseTile.rotation === 90 || baseTile.rotation === 270;
+
+  // 2. Determine the exposed pip on the baseTile at the connection point
+  let exposedPip = baseTile.sideA;
+  if (!isBaseVertical) {
+    const connectingToLeft = placementSide === 'left' || isLeftOrTopEnd;
+    if (connectingToLeft) {
+      exposedPip = baseTile.rotation === 180 ? baseTile.sideB : baseTile.sideA;
+    } else {
+      exposedPip = baseTile.rotation === 180 ? baseTile.sideA : baseTile.sideB;
+    }
+  } else {
+    const connectingToTop = placementSide === 'top' || isLeftOrTopEnd;
+    if (connectingToTop) {
+      exposedPip = baseTile.rotation === 270 ? baseTile.sideB : baseTile.sideA;
+    } else {
+      exposedPip = baseTile.rotation === 270 ? baseTile.sideA : baseTile.sideB;
+    }
+  }
+
+  // 3. Determine which rotation makes the touching half of the new tile match exposedPip
+  switch (placementSide) {
+    case 'right': {
+      // Touching half is LEFT
+      if (tile.sideA === exposedPip) return 0;
+      if (tile.sideB === exposedPip) return 180;
+      return 0;
+    }
+    case 'left': {
+      // Touching half is RIGHT
+      if (tile.sideB === exposedPip) return 0;
+      if (tile.sideA === exposedPip) return 180;
+      return 0;
+    }
+    case 'turn-up': {
+      // Touching half is BOTTOM
+      if (tile.sideB === exposedPip) return 90;
+      if (tile.sideA === exposedPip) return 270;
+      return 90;
+    }
+    case 'turn-down': {
+      // Touching half is TOP
+      if (tile.sideA === exposedPip) return 90;
+      if (tile.sideB === exposedPip) return 270;
+      return 90;
+    }
+    case 'top': {
+      // Touching half is BOTTOM
+      if (tile.sideB === exposedPip) return 90;
+      if (tile.sideA === exposedPip) return 270;
+      return 90;
+    }
+    case 'bottom': {
+      // Touching half is TOP
+      if (tile.sideA === exposedPip) return 90;
+      if (tile.sideB === exposedPip) return 270;
+      return 90;
+    }
+    case 'turn-left': {
+      // Touching half is RIGHT
+      if (tile.sideB === exposedPip) return 0;
+      if (tile.sideA === exposedPip) return 180;
+      return 0;
+    }
+    case 'turn-right': {
+      // Touching half is LEFT
+      if (tile.sideA === exposedPip) return 0;
+      if (tile.sideB === exposedPip) return 180;
+      return 0;
+    }
+    default:
+      return 0;
+  }
+}

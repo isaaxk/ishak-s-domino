@@ -1,4 +1,6 @@
-import { DominoTile, PlacedTile, PlacementSide, OpenEndInfo } from '../shared/types.js';
+import { DominoTile, PlacedTile, PlacementSide, OpenEndInfo, getMatchingRotation } from '../shared/types.js';
+
+export { getMatchingRotation };
 
 // Visual tile units on the coordinate plane
 export const TILE_LENGTH = 80;
@@ -166,38 +168,34 @@ export function placeTileOnBoard(
 
   if (placementSide === 'left') {
     if (rot === undefined) {
-      rot = tile.isDouble ? 90 : 0;
+      rot = getMatchingRotation(tile, 'left', baseTile);
     }
     const targetDim = getTileDimensions(rot);
     targetX = baseTile.x - (baseDim.width / 2) - TILE_GAP - (targetDim.width / 2);
     targetY = baseTile.y;
   } else if (placementSide === 'right') {
     if (rot === undefined) {
-      rot = tile.isDouble ? 90 : 0;
+      rot = getMatchingRotation(tile, 'right', baseTile);
     }
     const targetDim = getTileDimensions(rot);
     targetX = baseTile.x + (baseDim.width / 2) + TILE_GAP + (targetDim.width / 2);
     targetY = baseTile.y;
   } else if (placementSide === 'top') {
     if (rot === undefined) {
-      rot = tile.isDouble ? 0 : 90;
+      rot = getMatchingRotation(tile, 'top', baseTile);
     }
     const targetDim = getTileDimensions(rot);
     targetX = baseTile.x;
     targetY = baseTile.y - (baseDim.height / 2) - TILE_GAP - (targetDim.height / 2);
   } else if (placementSide === 'bottom') {
     if (rot === undefined) {
-      rot = tile.isDouble ? 0 : 90;
+      rot = getMatchingRotation(tile, 'bottom', baseTile);
     }
     const targetDim = getTileDimensions(rot);
     targetX = baseTile.x;
     targetY = baseTile.y + (baseDim.height / 2) + TILE_GAP + (targetDim.height / 2);
   } else if (placementSide === 'turn-up') {
     // 90° Turn Upwards (Snake / Corner)
-    if (rot === undefined) {
-      rot = 90; // vertical tile
-    }
-    const targetDim = getTileDimensions(rot);
     if (!isBaseVertical) {
       // Base tile is horizontal: align new vertical tile above the exposed half
       let isLeftEnd = false;
@@ -206,19 +204,23 @@ export function placeTileOnBoard(
       } else if (options.x !== undefined && options.x < baseTile.x) {
         isLeftEnd = true;
       }
+      if (rot === undefined) {
+        rot = getMatchingRotation(tile, 'turn-up', baseTile, isLeftEnd);
+      }
+      const targetDim = getTileDimensions(rot);
       targetX = isLeftEnd ? baseTile.x - 20 : baseTile.x + 20;
       targetY = baseTile.y - (baseDim.height / 2) - TILE_GAP - (targetDim.height / 2);
     } else {
       // Base tile is already vertical: continue straight up
+      if (rot === undefined) {
+        rot = getMatchingRotation(tile, 'top', baseTile);
+      }
+      const targetDim = getTileDimensions(rot);
       targetX = baseTile.x;
       targetY = baseTile.y - (baseDim.height / 2) - TILE_GAP - (targetDim.height / 2);
     }
   } else if (placementSide === 'turn-down') {
     // 90° Turn Downwards (Snake / Corner)
-    if (rot === undefined) {
-      rot = 90; // vertical tile
-    }
-    const targetDim = getTileDimensions(rot);
     if (!isBaseVertical) {
       // Base tile is horizontal: align new vertical tile below the exposed half
       let isLeftEnd = false;
@@ -227,19 +229,23 @@ export function placeTileOnBoard(
       } else if (options.x !== undefined && options.x < baseTile.x) {
         isLeftEnd = true;
       }
+      if (rot === undefined) {
+        rot = getMatchingRotation(tile, 'turn-down', baseTile, isLeftEnd);
+      }
+      const targetDim = getTileDimensions(rot);
       targetX = isLeftEnd ? baseTile.x - 20 : baseTile.x + 20;
       targetY = baseTile.y + (baseDim.height / 2) + TILE_GAP + (targetDim.height / 2);
     } else {
       // Base tile is already vertical: continue straight down
+      if (rot === undefined) {
+        rot = getMatchingRotation(tile, 'bottom', baseTile);
+      }
+      const targetDim = getTileDimensions(rot);
       targetX = baseTile.x;
       targetY = baseTile.y + (baseDim.height / 2) + TILE_GAP + (targetDim.height / 2);
     }
   } else if (placementSide === 'turn-left') {
     // 90° Turn Leftwards (Snake / Corner from vertical road)
-    if (rot === undefined) {
-      rot = 0; // horizontal tile
-    }
-    const targetDim = getTileDimensions(rot);
     if (isBaseVertical) {
       // Base tile is vertical: align new horizontal tile to the left of the exposed half
       let isBottomEnd = false;
@@ -248,19 +254,23 @@ export function placeTileOnBoard(
       } else if (options.y !== undefined && options.y > baseTile.y) {
         isBottomEnd = true;
       }
+      if (rot === undefined) {
+        rot = getMatchingRotation(tile, 'turn-left', baseTile, !isBottomEnd);
+      }
+      const targetDim = getTileDimensions(rot);
       targetY = isBottomEnd ? baseTile.y + 20 : baseTile.y - 20;
       targetX = baseTile.x - (baseDim.width / 2) - TILE_GAP - (targetDim.width / 2);
     } else {
       // Base tile is already horizontal: continue straight left
+      if (rot === undefined) {
+        rot = getMatchingRotation(tile, 'left', baseTile);
+      }
+      const targetDim = getTileDimensions(rot);
       targetX = baseTile.x - (baseDim.width / 2) - TILE_GAP - (targetDim.width / 2);
       targetY = baseTile.y;
     }
   } else if (placementSide === 'turn-right') {
     // 90° Turn Rightwards (Snake / Corner from vertical road)
-    if (rot === undefined) {
-      rot = 0; // horizontal tile
-    }
-    const targetDim = getTileDimensions(rot);
     if (isBaseVertical) {
       // Base tile is vertical: align new horizontal tile to the right of the exposed half
       let isBottomEnd = false;
@@ -269,17 +279,25 @@ export function placeTileOnBoard(
       } else if (options.y !== undefined && options.y > baseTile.y) {
         isBottomEnd = true;
       }
+      if (rot === undefined) {
+        rot = getMatchingRotation(tile, 'turn-right', baseTile, !isBottomEnd);
+      }
+      const targetDim = getTileDimensions(rot);
       targetY = isBottomEnd ? baseTile.y + 20 : baseTile.y - 20;
       targetX = baseTile.x + (baseDim.width / 2) + TILE_GAP + (targetDim.width / 2);
     } else {
       // Base tile is already horizontal: continue straight right
+      if (rot === undefined) {
+        rot = getMatchingRotation(tile, 'right', baseTile);
+      }
+      const targetDim = getTileDimensions(rot);
       targetX = baseTile.x + (baseDim.width / 2) + TILE_GAP + (targetDim.width / 2);
       targetY = baseTile.y;
     }
   } else {
     // Default right attachment
     if (rot === undefined) {
-      rot = tile.isDouble ? 90 : 0;
+      rot = getMatchingRotation(tile, 'right', baseTile);
     }
     const targetDim = getTileDimensions(rot);
     targetX = baseTile.x + (baseDim.width / 2) + TILE_GAP + (targetDim.width / 2);
