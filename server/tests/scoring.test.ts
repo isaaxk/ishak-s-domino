@@ -243,6 +243,42 @@ describe('Scoring Engine (Classic & All Fives)', () => {
     expect(openEndTileIds).not.toContain('t-0-1');
   });
 
+  it('correctly identifies open ends for spinner [0|0] with bottom branch ending in [5|5] and right branch ending in [6|6]', () => {
+    // Board matching media_1788633932255.jpg:
+    // Center: [0|0] (spinner) at (0, 0)
+    // Left branch going down to [5|5]
+    // Right branch going up/right to [6|6]
+    // Open ends are strictly:
+    // 1) Spinner top port (0)
+    // 2) Spinner bottom port (0)
+    // 3) End of right snake: [6|6]
+    // 4) End of bottom snake: [5|5]
+    const board: PlacedTile[] = [
+      { id: 't-0-0', sideA: 0, sideB: 0, isDouble: true, x: 0, y: 0, rotation: 90, placedBy: 'p1', turnNumber: 1, stepIndex: 0 },
+      { id: 't-0-1', sideA: 1, sideB: 0, isDouble: false, x: -63, y: 0, rotation: 0, placedBy: 'p2', turnNumber: 2, stepIndex: 0, attachedToId: 't-0-0' },
+      { id: 't-1-5', sideA: 1, sideB: 5, isDouble: false, x: -83, y: 63, rotation: 90, placedBy: 'p1', turnNumber: 3, stepIndex: 0, attachedToId: 't-0-1' },
+      { id: 't-5-5', sideA: 5, sideB: 5, isDouble: true, x: -83, y: 126, rotation: 0, placedBy: 'p2', turnNumber: 4, stepIndex: 0, attachedToId: 't-1-5' },
+      { id: 't-0-3', sideA: 0, sideB: 3, isDouble: false, x: 63, y: 0, rotation: 0, placedBy: 'p1', turnNumber: 5, stepIndex: 0, attachedToId: 't-0-0' },
+      { id: 't-3-6', sideA: 3, sideB: 6, isDouble: false, x: 126, y: 0, rotation: 0, placedBy: 'p2', turnNumber: 6, stepIndex: 0, attachedToId: 't-0-3' },
+    ];
+
+    const result = calculateOpenEnds(board);
+    expect(result.openEnds.length).toBe(4);
+
+    const endTileIds = result.openEnds.map((e) => e.tileId);
+    // Two open ends at the spinner [0|0] (top and bottom ports)
+    expect(endTileIds.filter((id) => id === 't-0-0').length).toBe(2);
+    // One open end at double 5 [5|5]
+    expect(endTileIds).toContain('t-5-5');
+    // One open end at [3|6]
+    expect(endTileIds).toContain('t-3-6');
+
+    // Intermediate tiles MUST NOT have open ends
+    expect(endTileIds).not.toContain('t-0-1');
+    expect(endTileIds).not.toContain('t-1-5');
+    expect(endTileIds).not.toContain('t-0-3');
+  });
+
   it('evaluates blocked round and identifies winner with lowest pip count', () => {
     const hands: Record<string, DominoTile[]> = {
       p1: [{ id: 'tile-1-1', sideA: 1, sideB: 1, totalPips: 2, isDouble: true }], // 2 pips (winner)

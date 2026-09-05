@@ -199,10 +199,10 @@ export function placeTileOnBoard(
     if (!isBaseVertical) {
       // Base tile is horizontal: align new vertical tile above the exposed half
       let isLeftEnd = false;
-      if (leftMost.id !== rightMost.id) {
+      if (options.x !== undefined) {
+        isLeftEnd = options.x < baseTile.x;
+      } else if (leftMost.id !== rightMost.id) {
         isLeftEnd = baseTile.id === leftMost.id;
-      } else if (options.x !== undefined && options.x < baseTile.x) {
-        isLeftEnd = true;
       }
       if (rot === undefined) {
         rot = getMatchingRotation(tile, 'turn-up', baseTile, isLeftEnd);
@@ -224,10 +224,10 @@ export function placeTileOnBoard(
     if (!isBaseVertical) {
       // Base tile is horizontal: align new vertical tile below the exposed half
       let isLeftEnd = false;
-      if (leftMost.id !== rightMost.id) {
+      if (options.x !== undefined) {
+        isLeftEnd = options.x < baseTile.x;
+      } else if (leftMost.id !== rightMost.id) {
         isLeftEnd = baseTile.id === leftMost.id;
-      } else if (options.x !== undefined && options.x < baseTile.x) {
-        isLeftEnd = true;
       }
       if (rot === undefined) {
         rot = getMatchingRotation(tile, 'turn-down', baseTile, isLeftEnd);
@@ -249,10 +249,10 @@ export function placeTileOnBoard(
     if (isBaseVertical) {
       // Base tile is vertical: align new horizontal tile to the left of the exposed half
       let isBottomEnd = false;
-      if (topMost.id !== bottomMost.id) {
+      if (options.y !== undefined) {
+        isBottomEnd = options.y > baseTile.y;
+      } else if (topMost.id !== bottomMost.id) {
         isBottomEnd = baseTile.id === bottomMost.id;
-      } else if (options.y !== undefined && options.y > baseTile.y) {
-        isBottomEnd = true;
       }
       if (rot === undefined) {
         rot = getMatchingRotation(tile, 'turn-left', baseTile, !isBottomEnd);
@@ -274,10 +274,10 @@ export function placeTileOnBoard(
     if (isBaseVertical) {
       // Base tile is vertical: align new horizontal tile to the right of the exposed half
       let isBottomEnd = false;
-      if (topMost.id !== bottomMost.id) {
+      if (options.y !== undefined) {
+        isBottomEnd = options.y > baseTile.y;
+      } else if (topMost.id !== bottomMost.id) {
         isBottomEnd = baseTile.id === bottomMost.id;
-      } else if (options.y !== undefined && options.y > baseTile.y) {
-        isBottomEnd = true;
       }
       if (rot === undefined) {
         rot = getMatchingRotation(tile, 'turn-right', baseTile, !isBottomEnd);
