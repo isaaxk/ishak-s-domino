@@ -262,6 +262,33 @@ export const HostSettingsModal: React.FC<HostSettingsModalProps> = ({
             </div>
           </div>
 
+          {/* Guaranteed Tile In Hands (Not in Draw Pile) */}
+          <div className="flex flex-col gap-1.5 p-3 rounded-xl bg-slate-800/80 border border-slate-700">
+            <div className="flex flex-col">
+              <span className="font-semibold text-slate-200">Guaranteed Tile in Hands (Not in Draw Pile)</span>
+              <span className="text-xs text-slate-400">
+                Ensure a specific tile is dealt to a player at random rather than left in the boneyard draw pile.
+              </span>
+            </div>
+            <select
+              value={form.protectedTiles?.[0] || 'none'}
+              onChange={(e) => {
+                const val = e.target.value;
+                setForm({ ...form, protectedTiles: val === 'none' ? [] : [val] });
+              }}
+              className="mt-1 bg-slate-900 border border-slate-700 rounded-xl p-2 text-white font-medium"
+            >
+              <option value="none">None (100% Random Deal - Default)</option>
+              <option value="tile-0-0">Double 0 [0|0]</option>
+              <option value="tile-6-6">Double 6 [6|6]</option>
+              <option value="tile-5-5">Double 5 [5|5]</option>
+              <option value="tile-4-4">Double 4 [4|4]</option>
+              <option value="tile-3-3">Double 3 [3|3]</option>
+              <option value="tile-2-2">Double 2 [2|2]</option>
+              <option value="tile-1-1">Double 1 [1|1]</option>
+            </select>
+          </div>
+
           {/* 8. Target Score / Win Condition */}
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">

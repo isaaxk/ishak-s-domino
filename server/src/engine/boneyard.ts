@@ -57,8 +57,8 @@ export function dealTiles(
   const maxPossiblePerPlayer = Math.floor(allTiles.length / playerIds.length);
   const targetHandSize = Math.max(1, Math.min(tilesPerPlayer, maxPossiblePerPlayer));
 
-  // 1. If there is a designated starting tile (e.g., tile-0-0 for All Fives),
-  // assign it to the starting player (or first player) so they can start the game.
+  // 1. If there is a designated starting tile (e.g., when startingTileRule === 'specific-tile'),
+  // assign it to the starting player if specified, or pick a random player (never hardcoded to host).
   let assignedStartingTile: DominoTile | undefined;
   if (startingTileId) {
     const tileIndex = availableTiles.findIndex((t) => t.id === startingTileId);
@@ -67,13 +67,13 @@ export function dealTiles(
       assignedStartingTile = tile;
       const recipient = startingPlayerId && playerHands[startingPlayerId]
         ? startingPlayerId
-        : playerIds[0];
+        : playerIds[Math.floor(Math.random() * playerIds.length)];
       playerHands[recipient].push(tile);
     }
   }
 
-  // 2. Identify protected tiles (tiles that must NOT remain in the boneyard)
-  // Ensure they get prioritized into player hands during deal.
+  // 2. Identify protected tiles (tiles host decided must NOT remain in boneyard)
+  // Ensure they get distributed to some player at random so host is never biased.
   const protectedTilesToDeal: DominoTile[] = [];
   for (const protId of protectedTileIds) {
     // If it was already dealt as starting tile, skip
@@ -87,20 +87,25 @@ export function dealTiles(
   // Shuffle remaining pool
   let shuffledPool = shuffleTiles(availableTiles);
 
-  // Distribute protected tiles first to players who still need tiles
-  for (const protTile of protectedTilesToDeal) {
-    const eligiblePlayer = playerIds.find((pid) => playerHands[pid].length < targetHandSize);
-    if (eligiblePlayer) {
-      playerHands[eligiblePlayer].push(protTile);
+  // Distribute protected tiles to random eligible players who still need tiles
+  const shuffledProtected = shuffleTiles(protectedTilesToDeal);
+  for (const protTile of shuffledProtected) {
+    const eligible = playerIds.filter((pid) => playerHands[pid].length < targetHandSize);
+    if (eligible.length > 0) {
+      const randomPlayer = eligible[Math.floor(Math.random() * eligible.length)];
+      playerHands[randomPlayer].push(protTile);
     } else {
-      // If hands are somehow full, put back in shuffled pool
+      // If hands are full, put back in shuffled pool
       shuffledPool.push(protTile);
     }
   }
 
-  // 3. Deal round-robin so tiles are distributed 1-by-1 evenly across all players
+  // 3. Deal round-robin with random starting offset so tiles are distributed 1-by-1 randomly
+  const dealOrder = [...playerIds];
+  const startOffset = Math.floor(Math.random() * dealOrder.length);
   for (let round = 0; round < targetHandSize; round++) {
-    for (const pid of playerIds) {
+    for (let i = 0; i < dealOrder.length; i++) {
+      const pid = dealOrder[(i + startOffset) % dealOrder.length];
       if (playerHands[pid].length < targetHandSize && shuffledPool.length > 0) {
         const drawn = shuffledPool.pop();
         if (drawn) {

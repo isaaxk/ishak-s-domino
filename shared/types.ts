@@ -41,7 +41,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   allowDrawing: true,
   startingTileRule: 'free-starter',
   specificStartingTile: 'tile-0-0',
-  protectedTiles: ['tile-0-0'],
+  protectedTiles: [],
   protectedBoneyardTiles: 2,
   allowFreePlacement: true, // Physical table freedom enabled
   allowMultipleTilesPerTurn: false,
@@ -122,7 +122,7 @@ export type UserClearState =
 export interface MoveSummary {
   playerId: string;
   playerNickname: string;
-  moveType: 'play' | 'draw' | 'pass';
+  moveType: 'play' | 'draw' | 'pass' | 'undo_pass';
   pointsAwarded: number;
   description: string;
   timestamp: number;
@@ -150,6 +150,8 @@ export interface GameState {
   currentOpenEndsSum?: number;
   canChangeLastMove?: boolean;
   lastMovePlayerId?: string | null;
+  canUndoPass?: boolean;
+  lastPassPlayerId?: string | null;
   starterRequest?: {
     playerId: string;
     playerNickname: string;
@@ -224,6 +226,10 @@ export interface ClientToServerEvents {
   ) => void;
 
   'game:pass': (
+    callback: (res: { success: boolean; error?: string }) => void
+  ) => void;
+
+  'game:undo_pass': (
     callback: (res: { success: boolean; error?: string }) => void
   ) => void;
 
@@ -606,6 +612,8 @@ export function calculateOpenEnds(board: PlacedTile[]): { openEnds: OpenEndInfo[
       const openEnds: OpenEndInfo[] = [
         { tileId: tile.id, side: 'A', pipValue: tile.sideA, x: tile.x, y: tile.y - 25 },
         { tileId: tile.id, side: 'B', pipValue: tile.sideB, x: tile.x, y: tile.y + 25 },
+        { tileId: tile.id, side: 'A', pipValue: tile.sideA, x: tile.x - 25, y: tile.y },
+        { tileId: tile.id, side: 'B', pipValue: tile.sideB, x: tile.x + 25, y: tile.y },
       ];
       return { openEnds, sum: tile.sideA + tile.sideB };
     } else {

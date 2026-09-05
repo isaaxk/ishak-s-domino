@@ -29,6 +29,7 @@ export interface EngineSession {
   privateHands: Record<string, DominoTile[]>;
   boneyard: DominoTile[];
   lastConfirmedMove?: LastConfirmedMove | null;
+  lastPass?: { playerId: string } | null;
 }
 
 /**
@@ -161,12 +162,15 @@ export function startNewRound(
     players: updatedPlayers,
     openEnds: [],
     currentOpenEndsSum: 0,
+    canUndoPass: false,
+    lastPassPlayerId: null,
   };
 
   return {
     state,
     privateHands: deal.playerHands,
     boneyard: deal.boneyard,
+    lastPass: null,
   };
 }
 
@@ -440,11 +444,17 @@ export function confirmTurnAction(
   state.canChangeLastMove = true;
   state.lastMovePlayerId = playerId;
 
+  // Playing a tile invalidates any previous pass undo
+  session.lastPass = null;
+  state.canUndoPass = false;
+  state.lastPassPlayerId = null;
+
   return { success: true, pointsScored, isRoundOver: false, isGameOver: false };
 }
 
 /**
  * Draws a tile from the boneyard into the active player's hand.
+ * Cannot be undone, and invalidates any previous pass undo.
  */
 export function drawTileAction(
   session: EngineSession,
@@ -483,17 +493,20 @@ export function drawTileAction(
     player.tileCount = hand.length;
   }
 
-  // Clear last confirmed move because an action has been taken
+  // Drawing CANNOT be undone, and invalidates previous confirmed move and pass undo
   session.lastConfirmedMove = null;
   state.canChangeLastMove = false;
   state.lastMovePlayerId = null;
+  session.lastPass = null;
+  state.canUndoPass = false;
+  state.lastPassPlayerId = null;
 
   state.lastMoveSummary = {
     playerId,
     playerNickname: player ? player.nickname : 'Player',
     moveType: 'draw',
     pointsAwarded: 0,
-    description: `${player?.nickname || 'Player'} drew a tile`,
+    description: `${player?.nickname || 'Player'} took a tile from the draw`,
     timestamp: Date.now(),
   };
 
@@ -503,6 +516,7 @@ export function drawTileAction(
 /**
  * Passes turn when player cannot or chooses to pass.
  * Checks for blocked game condition.
+ * Allows the passing player to undo the pass as long as no one plays after him.
  */
 export function passTurnAction(
   session: EngineSession,
@@ -526,6 +540,11 @@ export function passTurnAction(
   state.canChangeLastMove = false;
   state.lastMovePlayerId = null;
 
+  // Record this pass so the player can undo it if no one plays after them
+  session.lastPass = { playerId };
+  state.canUndoPass = true;
+  state.lastPassPlayerId = playerId;
+
   state.lastMoveSummary = {
     playerId,
     playerNickname: player ? player.nickname : 'Player',
@@ -545,6 +564,9 @@ export function passTurnAction(
     state.phase = 'round_finished';
     state.roundWinnerId = blockedEval.winnerId;
     state.revealedHands = { ...privateHands };
+    session.lastPass = null;
+    state.canUndoPass = false;
+    state.lastPassPlayerId = null;
 
     let roundBonus = 0;
     if (blockedEval.winnerId) {
@@ -563,6 +585,53 @@ export function passTurnAction(
 
   advanceTurn(state);
   return { success: true, isRoundOver: false, isGameOver: false };
+}
+
+/**
+ * Allows a player who passed to undo their pass, provided no player has taken an action
+ * (played a tile or drawn from boneyard) after them.
+ */
+export function undoPassAction(
+  session: EngineSession,
+  playerId: string
+): { success: boolean; error?: string } {
+  const { state } = session;
+
+  if (state.phase !== 'playing') {
+    return { success: false, error: 'Cannot undo pass: round is not in active playing state' };
+  }
+
+  if (!session.lastPass || session.lastPass.playerId !== playerId) {
+    return {
+      success: false,
+      error: 'Cannot undo pass: another player has already played after you, or you did not pass.',
+    };
+  }
+
+  const player = state.players.find((p) => p.id === playerId);
+
+  // Revert consecutivePasses
+  state.consecutivePasses = Math.max(0, state.consecutivePasses - 1);
+
+  // Return turn to this player
+  state.currentTurnPlayerId = playerId;
+  state.turnStartTime = Date.now();
+
+  // Clear lastPass
+  session.lastPass = null;
+  state.canUndoPass = false;
+  state.lastPassPlayerId = null;
+
+  state.lastMoveSummary = {
+    playerId,
+    playerNickname: player ? player.nickname : 'Player',
+    moveType: 'undo_pass',
+    pointsAwarded: 0,
+    description: `${player?.nickname || 'Player'} undid their pass`,
+    timestamp: Date.now(),
+  };
+
+  return { success: true };
 }
 
 function advanceTurn(state: GameState) {
@@ -653,6 +722,9 @@ export function changeLastMoveAction(
   session.lastConfirmedMove = null;
   state.canChangeLastMove = false;
   state.lastMovePlayerId = null;
+  session.lastPass = null;
+  state.canUndoPass = false;
+  state.lastPassPlayerId = null;
 
   // 6. Recalculate open ends
   const endsInfo = calculateOpenEnds([...state.board, ...state.pendingPlacements]);

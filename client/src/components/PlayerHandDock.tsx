@@ -10,6 +10,7 @@ interface PlayerHandDockProps {
   selectedRotation: number;
   isMyTurn: boolean;
   canChangeLastMove?: boolean;
+  canUndoPass?: boolean;
   isFreeStarterWaiting?: boolean;
   currentTurnPlayerName: string;
   boneyardCount: number;
@@ -23,6 +24,7 @@ interface PlayerHandDockProps {
   onConfirmTurn: () => void;
   onUndoTurn: () => void;
   onChangeLastMove?: () => void;
+  onUndoPass?: () => void;
   onDrawTile: () => void;
   onPassTurn: () => void;
 }
@@ -34,6 +36,7 @@ export const PlayerHandDock: React.FC<PlayerHandDockProps> = ({
   selectedRotation,
   isMyTurn,
   canChangeLastMove = false,
+  canUndoPass = false,
   isFreeStarterWaiting = false,
   currentTurnPlayerName,
   boneyardCount,
@@ -47,6 +50,7 @@ export const PlayerHandDock: React.FC<PlayerHandDockProps> = ({
   onConfirmTurn,
   onUndoTurn,
   onChangeLastMove,
+  onUndoPass,
   onDrawTile,
   onPassTurn,
 }) => {
@@ -193,7 +197,7 @@ export const PlayerHandDock: React.FC<PlayerHandDockProps> = ({
             <SkipForward size={14} /> Pass
           </button>
 
-          {/* Right Action: Change Move / Undo / Confirm Turn */}
+          {/* Right Action: Change Move / Undo Pass / Undo / Confirm Turn */}
           <div className="flex items-center gap-2">
             {canChangeLastMove && !hasPending && (
               <button
@@ -202,6 +206,16 @@ export const PlayerHandDock: React.FC<PlayerHandDockProps> = ({
                 title="Change your move before someone plays"
               >
                 <Edit3 size={15} /> Change Move
+              </button>
+            )}
+
+            {canUndoPass && !hasPending && (
+              <button
+                onClick={onUndoPass}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black shadow-lg border-2 border-indigo-300 animate-pulse active:scale-95 transition"
+                title="Undo your pass before someone plays"
+              >
+                <Undo2 size={15} /> Undo Pass
               </button>
             )}
 

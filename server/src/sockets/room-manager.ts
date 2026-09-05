@@ -20,6 +20,7 @@ import {
   changeLastMoveAction,
   drawTileAction,
   passTurnAction,
+  undoPassAction,
   selectStartingPlayerAction,
   EngineSession,
 } from '../engine/game-engine.js';
@@ -143,6 +144,7 @@ export class RoomManager {
           state: persisted.state,
           privateHands: persisted.privateHands,
           boneyard: persisted.boneyard,
+          lastPass: persisted.state.canUndoPass && persisted.state.lastPassPlayerId ? { playerId: persisted.state.lastPassPlayerId } : null,
         };
         this.sessions.set(cleanRoomId, session);
       } else if (persistedRoom) {
@@ -749,6 +751,21 @@ export class RoomManager {
     if (!session) return { success: false, error: 'Session not found' };
 
     const result = passTurnAction(session, meta.playerId);
+    if (result.success) {
+      this.db.saveGameState(meta.roomId, session.state, session.privateHands, session.boneyard);
+      this.broadcastRoomState(meta.roomId);
+    }
+    return result;
+  }
+
+  undoPass(socketId: string): { success: boolean; error?: string } {
+    const meta = this.socketToPlayer.get(socketId);
+    if (!meta) return { success: false, error: 'Not in a room' };
+
+    const session = this.sessions.get(meta.roomId);
+    if (!session) return { success: false, error: 'Session not found' };
+
+    const result = undoPassAction(session, meta.playerId);
     if (result.success) {
       this.db.saveGameState(meta.roomId, session.state, session.privateHands, session.boneyard);
       this.broadcastRoomState(meta.roomId);

@@ -191,6 +191,15 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('game:undo_pass', (callback) => {
+    try {
+      const result = roomManager.undoPass(socket.id);
+      callback(result);
+    } catch (err: any) {
+      callback({ success: false, error: err.message });
+    }
+  });
+
   // 12. Player Leaves Room
   socket.on('room:leave', (callback) => {
     try {

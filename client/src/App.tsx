@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { socket } from './socket.js';
 import type {
   GameState,
@@ -84,6 +84,7 @@ export function App() {
 
   // Toast notifications
   const [toast, setToast] = useState<{ message: string; type: 'info' | 'error' | 'success' } | null>(null);
+  const lastMoveTimestampRef = useRef<number>(0);
 
   const showToast = (message: string, type: 'info' | 'error' | 'success' = 'info') => {
     setToast({ message, type });
@@ -124,6 +125,17 @@ export function App() {
         if (state.lastMoveSummary && state.lastMoveSummary.pointsAwarded > 0) {
           if (state.lastMoveSummary.playerId === myPlayerId) {
             playSound('score');
+          }
+        }
+        // Broadcast notifications for pass, draw, undo pass to everyone
+        if (state.lastMoveSummary && state.lastMoveSummary.timestamp !== lastMoveTimestampRef.current) {
+          lastMoveTimestampRef.current = state.lastMoveSummary.timestamp;
+          if (state.lastMoveSummary.moveType === 'pass') {
+            showToast(`${state.lastMoveSummary.playerNickname} passed`, 'info');
+          } else if (state.lastMoveSummary.moveType === 'draw') {
+            showToast(`${state.lastMoveSummary.playerNickname} took a tile from the draw`, 'info');
+          } else if (state.lastMoveSummary.moveType === 'undo_pass') {
+            showToast(`${state.lastMoveSummary.playerNickname} undid their pass`, 'info');
           }
         }
         return state;
@@ -417,6 +429,18 @@ export function App() {
     });
   };
 
+  // Undo pass if no one played after
+  const handleUndoPass = () => {
+    playSound('click');
+    socket.emit('game:undo_pass', (res) => {
+      if (res.success) {
+        showToast('Pass cancelled! It is your turn again.', 'info');
+      } else {
+        showToast(res.error || 'Cannot undo pass', 'error');
+      }
+    });
+  };
+
   // Rotate selected tile 90 degrees
   const handleRotateTile = () => {
     setSelectedRotation((prev) => (prev + 90) % 360);
@@ -556,12 +580,15 @@ export function App() {
             openEnds={gameState.openEnds}
             isMyTurn={isMyTurn}
             canChangeLastMove={Boolean(gameState.canChangeLastMove && gameState.lastMovePlayerId === myPlayerId)}
+            canUndoPass={Boolean(gameState.canUndoPass && gameState.lastPassPlayerId === myPlayerId)}
             gameType={gameState.settings.gameType}
+            lastMoveSummary={gameState.lastMoveSummary}
             onPlaceTile={handlePlaceTile}
             onRotatePendingTile={handleRotatePendingTile}
             onConfirmTurn={handleConfirmTurn}
             onUndoTurn={handleUndoTurn}
             onChangeLastMove={handleChangeLastMove}
+            onUndoPass={handleUndoPass}
           />
 
           {/* Player Hand Carousel & Action Dock */}
@@ -572,6 +599,7 @@ export function App() {
             selectedRotation={selectedRotation}
             isMyTurn={isMyTurn}
             canChangeLastMove={Boolean(gameState.canChangeLastMove && gameState.lastMovePlayerId === myPlayerId)}
+            canUndoPass={Boolean(gameState.canUndoPass && gameState.lastPassPlayerId === myPlayerId)}
             isFreeStarterWaiting={isFreeStarterWaiting}
             currentTurnPlayerName={isFreeStarterWaiting ? 'Anyone' : (currentTurnPlayer?.nickname || 'Opponent')}
             boneyardCount={gameState.boneyardCount}
@@ -595,6 +623,7 @@ export function App() {
             onConfirmTurn={handleConfirmTurn}
             onUndoTurn={handleUndoTurn}
             onChangeLastMove={handleChangeLastMove}
+            onUndoPass={handleUndoPass}
             onDrawTile={handleDrawTile}
             onPassTurn={handlePassTurn}
           />

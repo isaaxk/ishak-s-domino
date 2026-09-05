@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { getMatchingRotation, calculateOpenEnds, type PlacedTile, type DominoTile, type PlacementSide, type OpenEndInfo } from '../../../shared/types.js';
+import { getMatchingRotation, calculateOpenEnds, type PlacedTile, type DominoTile, type PlacementSide, type OpenEndInfo, type MoveSummary } from '../../../shared/types.js';
 import { DominoTileView } from './DominoTileView.js';
 import {
   ZoomIn,
@@ -30,7 +30,9 @@ interface DominoBoardProps {
   openEnds?: OpenEndInfo[];
   isMyTurn: boolean;
   canChangeLastMove?: boolean;
+  canUndoPass?: boolean;
   gameType: 'classic' | 'all-fives';
+  lastMoveSummary?: MoveSummary | null;
   onPlaceTile: (placement: {
     tileId: string;
     x: number;
@@ -43,6 +45,7 @@ interface DominoBoardProps {
   onConfirmTurn?: () => void;
   onUndoTurn?: () => void;
   onChangeLastMove?: () => void;
+  onUndoPass?: () => void;
 }
 
 export const DominoBoard: React.FC<DominoBoardProps> = ({
@@ -53,12 +56,15 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
   openEnds = [],
   isMyTurn,
   canChangeLastMove = false,
+  canUndoPass = false,
   gameType,
+  lastMoveSummary,
   onPlaceTile,
   onRotatePendingTile,
   onConfirmTurn,
   onUndoTurn,
   onChangeLastMove,
+  onUndoPass,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -887,6 +893,21 @@ export const DominoBoard: React.FC<DominoBoardProps> = ({
             className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-black shadow-2xl border-2 border-amber-300 animate-pulse active:scale-95 transition"
           >
             <Edit3 size={15} /> You can change your move! (Tap to edit)
+          </button>
+        </div>
+      )}
+
+      {/* Undo Pass Banner */}
+      {canUndoPass && pendingPlacements.length === 0 && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 animate-fadeIn">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onUndoPass?.();
+            }}
+            className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black shadow-2xl border-2 border-indigo-300 animate-pulse active:scale-95 transition"
+          >
+            <Undo2 size={15} /> You passed! (Tap to Undo Pass)
           </button>
         </div>
       )}
