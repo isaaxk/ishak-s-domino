@@ -131,7 +131,7 @@ export const PlayerHandDock: React.FC<PlayerHandDockProps> = ({
         )}
 
         {/* Tiles in Player's Hand */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 px-1 min-h-[60px]">
+        <div className="flex items-center gap-2.5 overflow-x-auto no-scrollbar py-2 px-2 min-h-[66px]">
           {hand.length === 0 ? (
             <div className="text-xs text-slate-400 italic py-3 text-center w-full">
               No tiles in hand.
@@ -147,13 +147,13 @@ export const PlayerHandDock: React.FC<PlayerHandDockProps> = ({
                     e.dataTransfer.setData('text/plain', tile.id);
                     onSelectTile(tile);
                   }}
-                  className="flex-shrink-0 transition-transform cursor-grab active:cursor-grabbing"
+                  className="flex-shrink-0 transition-transform cursor-grab active:cursor-grabbing hover:-translate-y-0.5"
                 >
                   <DominoTileView
                     sideA={tile.sideA}
                     sideB={tile.sideB}
                     rotation={0}
-                    scale={0.85}
+                    scale={0.92}
                     isSelected={isSelected}
                     onClick={() => {
                       if (!isMyTurn) return;

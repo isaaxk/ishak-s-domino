@@ -12,67 +12,137 @@ interface DominoTileViewProps {
 }
 
 /**
- * Returns 3x3 grid coordinates [row, col] for pip dot count from 0 to 9.
+ * Returns exact SVG coordinates (within a 100x100 square) for domino pips (0 to 9).
+ * Coordinates are proportioned to ensure pips never clip or overlap boundaries.
  */
-function getPipCoordinates(val: number): [number, number][] {
+function getSvgPipPositions(val: number): { x: number; y: number }[] {
   switch (val) {
     case 0:
       return [];
     case 1:
-      return [[1, 1]]; // Center
+      // Single center dot
+      return [{ x: 50, y: 50 }];
     case 2:
-      return [[0, 0], [2, 2]]; // Diagonal
+      // Diagonal 2
+      return [
+        { x: 27, y: 27 },
+        { x: 73, y: 73 },
+      ];
     case 3:
-      return [[0, 0], [1, 1], [2, 2]]; // Diagonal 3
+      // Diagonal 3
+      return [
+        { x: 27, y: 27 },
+        { x: 50, y: 50 },
+        { x: 73, y: 73 },
+      ];
     case 4:
-      return [[0, 0], [0, 2], [2, 0], [2, 2]]; // 4 corners
+      // 4 corners
+      return [
+        { x: 27, y: 27 },
+        { x: 73, y: 27 },
+        { x: 27, y: 73 },
+        { x: 73, y: 73 },
+      ];
     case 5:
-      return [[0, 0], [0, 2], [1, 1], [2, 0], [2, 2]]; // 4 corners + center
+      // 4 corners + center
+      return [
+        { x: 27, y: 27 },
+        { x: 73, y: 27 },
+        { x: 50, y: 50 },
+        { x: 27, y: 73 },
+        { x: 73, y: 73 },
+      ];
     case 6:
-      return [[0, 0], [1, 0], [2, 0], [0, 2], [1, 2], [2, 2]]; // 2 columns of 3
+      // 2 columns of 3
+      return [
+        { x: 27, y: 25 },
+        { x: 27, y: 50 },
+        { x: 27, y: 75 },
+        { x: 73, y: 25 },
+        { x: 73, y: 50 },
+        { x: 73, y: 75 },
+      ];
     case 7:
-      return [[0, 0], [1, 0], [2, 0], [1, 1], [0, 2], [1, 2], [2, 2]]; // 6 pips + center
+      // 6 pips + center
+      return [
+        { x: 27, y: 25 },
+        { x: 27, y: 50 },
+        { x: 27, y: 75 },
+        { x: 50, y: 50 },
+        { x: 73, y: 25 },
+        { x: 73, y: 50 },
+        { x: 73, y: 75 },
+      ];
     case 8:
+      // 2 columns of 4
       return [
-        [0, 0], [1, 0], [2, 0], [3, 0],
-        [0, 2], [1, 2], [2, 2], [3, 2],
-      ]; // 2 columns of 4
+        { x: 27, y: 20 },
+        { x: 27, y: 40 },
+        { x: 27, y: 60 },
+        { x: 27, y: 80 },
+        { x: 73, y: 20 },
+        { x: 73, y: 40 },
+        { x: 73, y: 60 },
+        { x: 73, y: 80 },
+      ];
     case 9:
+      // 3 columns of 3
       return [
-        [0, 0], [1, 0], [2, 0],
-        [0, 1], [1, 1], [2, 1],
-        [0, 2], [1, 2], [2, 2],
-      ]; // 3 columns of 3
+        { x: 27, y: 25 },
+        { x: 27, y: 50 },
+        { x: 27, y: 75 },
+        { x: 50, y: 25 },
+        { x: 50, y: 50 },
+        { x: 50, y: 75 },
+        { x: 73, y: 25 },
+        { x: 73, y: 50 },
+        { x: 73, y: 75 },
+      ];
     default:
       return [];
   }
 }
 
+/**
+ * Renders a single square half of a domino using vector SVG so pips never get clipped,
+ * distorted, or hidden regardless of screen resolution or scale factor.
+ */
 function HalfTile({ value }: { value: number }) {
-  const pips = getPipCoordinates(value);
-  const isEight = value === 8;
+  const pips = getSvgPipPositions(value);
+  const r = value === 8 ? 6.5 : 7.8;
 
   return (
-    <div
-      className="relative w-full h-full p-1 flex items-center justify-center"
-      style={{
-        display: 'grid',
-        gridTemplateRows: isEight ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)',
-        gridTemplateColumns: 'repeat(3, 1fr)',
-        gap: '2px',
-      }}
+    <svg
+      viewBox="0 0 100 100"
+      className="w-full h-full block select-none pointer-events-none"
+      preserveAspectRatio="xMidYMid meet"
     >
-      {pips.map(([r, c], idx) => (
-        <div
-          key={idx}
-          className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-domino-pip shadow-inner justify-self-center self-center"
-          style={{
-            gridRowStart: r + 1,
-            gridColumnStart: c + 1,
-          }}
-        />
+      {pips.map((pt, idx) => (
+        <g key={idx}>
+          {/* Subtle bottom highlight rim simulating physical carved indentation */}
+          <circle
+            cx={pt.x}
+            cy={pt.y + 0.8}
+            r={r}
+            fill="rgba(255, 255, 255, 0.45)"
+          />
+          {/* Solid rich ebony pip body */}
+          <circle
+            cx={pt.x}
+            cy={pt.y}
+            r={r}
+            fill="#1c1917"
+          />
+          {/* Subtle top-left specular reflection */}
+          <circle
+            cx={pt.x - r * 0.28}
+            cy={pt.y - r * 0.28}
+            r={r * 0.35}
+            fill="rgba(255, 255, 255, 0.2)"
+          />
+        </g>
       ))}
-    </div>
+    </svg>
   );
 }
 
@@ -86,7 +156,7 @@ export const DominoTileView: React.FC<DominoTileViewProps> = ({
   onClick,
   className = '',
 }) => {
-  // Base dimensions: width 80px, height 40px
+  // Base dimensions: width 80px, height 40px (standard 2:1 ratio)
   const baseWidth = 80;
   const baseHeight = 40;
 
@@ -100,25 +170,29 @@ export const DominoTileView: React.FC<DominoTileViewProps> = ({
         transformOrigin: 'center center',
       }}
       className={`
-        relative rounded-md border border-neutral-300 select-none cursor-pointer
-        transition-all duration-150 ease-out flex flex-row overflow-hidden
-        ${isPending ? 'bg-amber-50 border-amber-400 animate-pulse ring-2 ring-amber-400' : 'bg-domino-ivory'}
-        ${isSelected ? 'ring-4 ring-emerald-500 scale-105 shadow-glow z-20' : 'shadow-tile hover:shadow-tile-lg'}
+        relative select-none cursor-pointer
+        transition-all duration-150 ease-out flex flex-row items-center
+        rounded-lg overflow-hidden
+        ${isPending
+          ? 'bg-amber-50 border-2 border-amber-400 animate-pulse ring-2 ring-amber-400'
+          : 'bg-gradient-to-b from-[#FFFDF8] via-[#FAF6EC] to-[#EFEAD9] border border-[#D4CDBA] shadow-[0_4px_10px_rgba(0,0,0,0.35),0_1px_3px_rgba(0,0,0,0.2),inset_0_1px_1px_rgba(255,255,255,0.9),inset_0_-1px_2px_rgba(0,0,0,0.08)]'
+        }
+        ${isSelected ? 'ring-4 ring-emerald-500 scale-105 shadow-glow z-20' : 'hover:brightness-105'}
         ${className}
       `}
     >
       {/* Side A Half */}
-      <div className="flex-1 h-full flex items-center justify-center">
+      <div className="flex-1 h-full p-1 flex items-center justify-center overflow-hidden">
         <HalfTile value={sideA} />
       </div>
 
       {/* Center Dividing Line with Metallic Brass Pin */}
-      <div className="w-[2px] h-full bg-neutral-300 relative flex items-center justify-center">
-        <div className="w-1.5 h-1.5 rounded-full bg-domino-brass shadow-sm border border-amber-600" />
+      <div className="w-[1.5px] h-[78%] bg-[#BFB79F] shadow-[1px_0_0_rgba(255,255,255,0.8)] relative flex items-center justify-center flex-shrink-0">
+        <div className="w-1.5 h-1.5 rounded-full bg-gradient-to-br from-[#FFE599] via-[#D4AF37] to-[#8C6D1F] border border-[#A67C1E] shadow-[0_1px_2px_rgba(0,0,0,0.5)] absolute" />
       </div>
 
       {/* Side B Half */}
-      <div className="flex-1 h-full flex items-center justify-center">
+      <div className="flex-1 h-full p-1 flex items-center justify-center overflow-hidden">
         <HalfTile value={sideB} />
       </div>
     </div>

@@ -75,13 +75,13 @@ export const RoundOverModal: React.FC<RoundOverModalProps> = ({
                       Domino! (All tiles played)
                     </div>
                   ) : (
-                    <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
+                    <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1.5">
                       {hand.map((tile) => (
                         <DominoTileView
                           key={tile.id}
                           sideA={tile.sideA}
                           sideB={tile.sideB}
-                          scale={0.65}
+                          scale={0.75}
                         />
                       ))}
                     </div>
