@@ -104,12 +104,23 @@ function getSvgPipPositions(val: number): { x: number; y: number }[] {
 }
 
 /**
+ * Returns optimal pip dot radius depending on pip count so dots look thick, bold,
+ * and prominent while maintaining proper clearance.
+ */
+function getPipRadius(val: number): number {
+  if (val === 8) return 7.8;
+  if (val === 9 || val === 7) return 9.0;
+  if (val === 1) return 11.0; // Bold prominent single center dot
+  return 10.2; // Thick, bold dots for 2, 3, 4, 5, 6
+}
+
+/**
  * Renders a single square half of a domino using vector SVG so pips never get clipped,
  * distorted, or hidden regardless of screen resolution or scale factor.
  */
 function HalfTile({ value }: { value: number }) {
   const pips = getSvgPipPositions(value);
-  const r = value === 8 ? 6.5 : 7.8;
+  const r = getPipRadius(value);
 
   return (
     <svg
@@ -122,23 +133,23 @@ function HalfTile({ value }: { value: number }) {
           {/* Subtle bottom highlight rim simulating physical carved indentation */}
           <circle
             cx={pt.x}
-            cy={pt.y + 0.8}
+            cy={pt.y + 0.9}
             r={r}
-            fill="rgba(255, 255, 255, 0.45)"
+            fill="rgba(255, 255, 255, 0.5)"
           />
           {/* Solid rich ebony pip body */}
           <circle
             cx={pt.x}
             cy={pt.y}
             r={r}
-            fill="#1c1917"
+            fill="#18181b"
           />
           {/* Subtle top-left specular reflection */}
           <circle
             cx={pt.x - r * 0.28}
             cy={pt.y - r * 0.28}
             r={r * 0.35}
-            fill="rgba(255, 255, 255, 0.2)"
+            fill="rgba(255, 255, 255, 0.22)"
           />
         </g>
       ))}
@@ -182,7 +193,7 @@ export const DominoTileView: React.FC<DominoTileViewProps> = ({
       `}
     >
       {/* Side A Half */}
-      <div className="flex-1 h-full p-1 flex items-center justify-center overflow-hidden">
+      <div className="flex-1 h-full p-0.5 flex items-center justify-center overflow-hidden">
         <HalfTile value={sideA} />
       </div>
 
@@ -192,7 +203,7 @@ export const DominoTileView: React.FC<DominoTileViewProps> = ({
       </div>
 
       {/* Side B Half */}
-      <div className="flex-1 h-full p-1 flex items-center justify-center overflow-hidden">
+      <div className="flex-1 h-full p-0.5 flex items-center justify-center overflow-hidden">
         <HalfTile value={sideB} />
       </div>
     </div>
