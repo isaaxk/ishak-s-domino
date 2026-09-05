@@ -241,16 +241,16 @@ describe('Mid-Game Settings & Domino Snake/Corner Placement', () => {
       expect(res56.placedTile.rotation).toBe(0);
     });
 
-    it('defaults double tiles to vertical (rotation: 90) by default', () => {
+    it('defaults double tiles to vertical on horizontal road, and horizontal on vertical road (opposite of tile before it)', () => {
       const double4: DominoTile = { id: 't-4-4', sideA: 4, sideB: 4, totalPips: 8, isDouble: true };
 
       // 1. First tile on empty board
       const firstPlacement = placeTileOnBoard([], double4, 'p1', 1, 0);
       expect(firstPlacement.placedTile.rotation).toBe(90);
 
-      // 2. Attached to right of an existing tile
-      const baseTile: PlacedTile = {
-        id: 'base-tile',
+      // 2. Attached to right of a horizontal tile (road is horizontal) -> double is VERTICAL (90)
+      const baseHorizontal: PlacedTile = {
+        id: 'base-h',
         sideA: 6,
         sideB: 4,
         totalPips: 10,
@@ -263,18 +263,67 @@ describe('Mid-Game Settings & Domino Snake/Corner Placement', () => {
         stepIndex: 0,
         placementSide: 'free',
       };
-      const doublePlacementRight = placeTileOnBoard([baseTile], double4, 'p2', 1, 1, {
+      const doublePlacementRight = placeTileOnBoard([baseHorizontal], double4, 'p2', 1, 1, {
         placementSide: 'right',
-        attachedToId: 'base-tile',
+        attachedToId: 'base-h',
       });
       expect(doublePlacementRight.placedTile.rotation).toBe(90);
 
-      // 3. Attached to left
-      const doublePlacementLeft = placeTileOnBoard([baseTile], double4, 'p2', 1, 1, {
+      // 3. Attached to left of a horizontal tile -> double is VERTICAL (90)
+      const doublePlacementLeft = placeTileOnBoard([baseHorizontal], double4, 'p2', 1, 1, {
         placementSide: 'left',
-        attachedToId: 'base-tile',
+        attachedToId: 'base-h',
       });
       expect(doublePlacementLeft.placedTile.rotation).toBe(90);
+
+      // 4. Road is vertical (baseTile is vertical: rotation 90 or 270) -> double must be HORIZONTAL (0)
+      const baseVertical: PlacedTile = {
+        id: 'base-v',
+        sideA: 5,
+        sideB: 4,
+        totalPips: 9,
+        isDouble: false,
+        x: 20,
+        y: -63,
+        rotation: 270, // Vertical tile on top branch
+        placedBy: 'p1',
+        turnNumber: 1,
+        stepIndex: 1,
+        placementSide: 'turn-up',
+      };
+
+      // Placed on top of vertical tile -> HORIZONTAL (0)
+      const doublePlacementTop = placeTileOnBoard([baseHorizontal, baseVertical], double4, 'p2', 1, 2, {
+        placementSide: 'top',
+        attachedToId: 'base-v',
+      });
+      expect(doublePlacementTop.placedTile.rotation).toBe(0);
+      // Verify crosswise geometry: width 80, height 40, centered horizontally at baseTile.x
+      expect(doublePlacementTop.placedTile.x).toBe(20);
+      expect(doublePlacementTop.placedTile.y).toBe(-63 - 40 - TILE_GAP - 20);
+
+      // 5. Placed on bottom of a vertical tile -> HORIZONTAL (0)
+      const baseVerticalBottom: PlacedTile = {
+        id: 'base-v-bot',
+        sideA: 4,
+        sideB: 2,
+        totalPips: 6,
+        isDouble: false,
+        x: 20,
+        y: 63,
+        rotation: 90, // Vertical tile on bottom branch
+        placedBy: 'p1',
+        turnNumber: 1,
+        stepIndex: 1,
+        placementSide: 'turn-down',
+      };
+      const doublePlacementBottom = placeTileOnBoard([baseHorizontal, baseVerticalBottom], double4, 'p2', 1, 2, {
+        placementSide: 'bottom',
+        attachedToId: 'base-v-bot',
+      });
+      expect(doublePlacementBottom.placedTile.rotation).toBe(0);
+      expect(doublePlacementBottom.placedTile.x).toBe(20);
+      expect(doublePlacementBottom.placedTile.y).toBe(63 + 40 + TILE_GAP + 20);
     });
   });
 });

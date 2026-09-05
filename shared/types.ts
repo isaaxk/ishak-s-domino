@@ -282,9 +282,15 @@ export function getMatchingRotation(
   baseTile?: PlacedTile,
   isLeftOrTopEnd?: boolean
 ): number {
-  // 1. Double tiles: put the tile vertically by default (90°)
+  // 1. Double tiles: always placed opposite of the tile that is before it.
+  // When the road is vertical (baseTile is vertical: 90° or 270°), the double must be placed horizontally (0°).
+  // When the road is horizontal (baseTile is horizontal: 0° or 180°), the double must be placed vertically (90°).
   if (tile.isDouble) {
-    return 90;
+    if (!baseTile) {
+      return 90; // Opening double on empty table is vertical
+    }
+    const isBaseVertical = baseTile.rotation === 90 || baseTile.rotation === 270;
+    return isBaseVertical ? 0 : 90;
   }
 
   if (!baseTile) {
