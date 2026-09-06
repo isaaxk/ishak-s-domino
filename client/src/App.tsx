@@ -310,10 +310,28 @@ export function App() {
     });
   };
 
-  // Restart game after game over
+  // Restart game after game over ("Play Again")
   const handleRestartGame = () => {
-    socket.emit('room:update_settings', { settings: {} }, () => {});
-    handleNextRound();
+    playSound('click');
+    socket.emit('room:restart', (res) => {
+      if (!res.success) {
+        socket.emit('game:restart', (res2) => {
+          if (!res2.success) {
+            socket.emit('game:next_round', {}, (res3) => {
+              if (!res3.success) {
+                showToast(res3.error || res2.error || res.error || 'Failed to restart game', 'error');
+              } else {
+                playSound('turn');
+              }
+            });
+          } else {
+            playSound('turn');
+          }
+        });
+      } else {
+        playSound('turn');
+      }
+    });
   };
 
   // Manager forces finish current round ("la partie")

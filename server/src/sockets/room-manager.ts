@@ -386,6 +386,11 @@ export class RoomManager {
     const player = session.state.players.find((p) => p.id === meta.playerId);
     if (!player || !player.isHost) return { success: false, error: 'Only host can start the next round' };
 
+    // If game has completed, starting the next round restarts the match ("Play Again")
+    if (session.state.phase === 'game_finished') {
+      return this.restartGame(socketId, startingPlayerId);
+    }
+
     if (session.state.phase !== 'round_finished') {
       return { success: false, error: 'Current round is not finished' };
     }
@@ -408,6 +413,67 @@ export class RoomManager {
       winnerId,
       startingPlayerId
     );
+    this.sessions.set(meta.roomId, newSession);
+
+    this.db.saveGameState(meta.roomId, newSession.state, newSession.privateHands, newSession.boneyard);
+    this.broadcastRoomState(meta.roomId);
+
+    return { success: true };
+  }
+
+  restartGame(socketId: string, startingPlayerId?: string): { success: boolean; error?: string } {
+    const meta = this.socketToPlayer.get(socketId);
+    if (!meta) return { success: false, error: 'Not in a room' };
+
+    const session = this.sessions.get(meta.roomId);
+    if (!session) return { success: false, error: 'Session not found' };
+
+    const player = session.state.players.find((p) => p.id === meta.playerId);
+    if (!player) return { success: false, error: 'Player not found' };
+
+    // Host can restart anytime; when game is finished, any player at table can tap Play Again to restart
+    if (!player.isHost && session.state.phase !== 'game_finished') {
+      return { success: false, error: 'Only the room manager can restart an ongoing match' };
+    }
+
+    if (session.state.players.length < 2) {
+      return { success: false, error: 'At least 2 players are required to start' };
+    }
+
+    // Auto-clamp tilesPerPlayer so every joined player receives an equal amount of tiles
+    const totalTiles = getSetTileCount(session.state.settings.dominoSet);
+    const maxAllowedForJoined = Math.floor(totalTiles / session.state.players.length);
+    if (session.state.settings.tilesPerPlayer > maxAllowedForJoined) {
+      session.state.settings.tilesPerPlayer = Math.max(1, maxAllowedForJoined);
+    }
+
+    // Reset scores and tile counts for all players for a fresh match
+    const resetPlayers: PlayerState[] = session.state.players.map((p) => ({
+      ...p,
+      score: 0,
+      tileCount: 0,
+      isReady: true,
+    }));
+
+    // Start fresh game at round 1
+    const newSession = startNewRound(
+      meta.roomId,
+      session.state.settings,
+      resetPlayers,
+      1,
+      undefined,
+      startingPlayerId
+    );
+
+    newSession.state.lastMoveSummary = {
+      playerId: meta.playerId,
+      playerNickname: player.nickname,
+      moveType: 'play',
+      pointsAwarded: 0,
+      description: `${player.nickname} restarted the game`,
+      timestamp: Date.now(),
+    };
+
     this.sessions.set(meta.roomId, newSession);
 
     this.db.saveGameState(meta.roomId, newSession.state, newSession.privateHands, newSession.boneyard);

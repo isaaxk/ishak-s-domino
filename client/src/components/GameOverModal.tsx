@@ -92,16 +92,16 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
         </div>
 
         {/* Modal Action */}
-        <div className="p-5 border-t border-slate-800 bg-slate-950/60 flex justify-center">
-          {isHost ? (
-            <button
-              onClick={onRestart}
-              className="flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm shadow-glow transition active:scale-95"
-            >
-              <RotateCcw size={18} /> Play Again
-            </button>
-          ) : (
-            <span className="text-xs text-slate-400">Waiting for host to start a new game...</span>
+        <div className="p-5 border-t border-slate-800 bg-slate-950/60 flex flex-col items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={onRestart}
+            className="flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm shadow-glow transition active:scale-95 cursor-pointer select-none"
+          >
+            <RotateCcw size={18} /> Play Again
+          </button>
+          {!isHost && (
+            <span className="text-xs text-slate-400">Tap to start a new match for all players</span>
           )}
         </div>
       </div>

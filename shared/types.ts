@@ -274,6 +274,10 @@ export interface ClientToServerEvents {
   'room:restart': (
     callback: (res: { success: boolean; error?: string }) => void
   ) => void;
+
+  'game:restart': (
+    callback: (res: { success: boolean; error?: string }) => void
+  ) => void;
 }
 
 export interface ServerToClientEvents {

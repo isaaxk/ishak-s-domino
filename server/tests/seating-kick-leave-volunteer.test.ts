@@ -263,4 +263,57 @@ describe('Seating, Kick, Leave, and Starter Volunteer Workflow', () => {
     expect(activeSession.state.board.length).toBe(0);
     expect(activeSession.state.pendingPlacements.length).toBe(1);
   });
+
+  it('allows players to tap Play Again after game finishes, resetting scores and round count', () => {
+    const hostSocket: any = { id: 's-host-restart', join: () => {}, emit: () => {} };
+    const p2Socket: any = { id: 's-p2-restart', join: () => {}, emit: () => {} };
+
+    (io.sockets.sockets as any) = new Map([
+      ['s-host-restart', hostSocket],
+      ['s-p2-restart', p2Socket],
+    ]);
+
+    const created = roomManager.createRoom(hostSocket, 'Alice');
+    const p2 = roomManager.joinRoom(p2Socket, created.roomId!, 'Bob');
+
+    // Start game
+    roomManager.startGame('s-host-restart');
+    const session = (roomManager as any).sessions.get(created.roomId!);
+
+    // Simulate round finishes and game finishes with scores
+    session.state.players[0].score = 150;
+    session.state.players[1].score = 90;
+    session.state.roundNumber = 4;
+    session.state.phase = 'game_finished';
+    session.state.gameWinnerId = session.state.players[0].id;
+
+    // Bob (non-host) taps Play Again via restartGame -> should succeed because game is finished!
+    const restartRes = roomManager.restartGame('s-p2-restart');
+    expect(restartRes.success).toBe(true);
+
+    const activeSession = (roomManager as any).sessions.get(created.roomId!);
+    expect(activeSession.state.roundNumber).toBe(1);
+    expect(activeSession.state.gameWinnerId).toBeNull();
+    expect(activeSession.state.roundWinnerId).toBeNull();
+    expect(activeSession.state.isBlocked).toBe(false);
+    expect(activeSession.state.board.length).toBe(0);
+    // Both player scores must be reset to 0
+    expect(activeSession.state.players[0].score).toBe(0);
+    expect(activeSession.state.players[1].score).toBe(0);
+    expect(['playing', 'selecting_starter']).toContain(activeSession.state.phase);
+
+    // Now test nextRound fallback when game is finished
+    activeSession.state.phase = 'game_finished';
+    activeSession.state.players[0].score = 120;
+    activeSession.state.roundNumber = 3;
+
+    // Host calls nextRound while game is finished -> should seamlessly restart game!
+    const nextRoundRes = roomManager.nextRound('s-host-restart');
+    expect(nextRoundRes.success).toBe(true);
+
+    const restartedSession = (roomManager as any).sessions.get(created.roomId!);
+    expect(restartedSession.state.roundNumber).toBe(1);
+    expect(restartedSession.state.players[0].score).toBe(0);
+    expect(restartedSession.state.players[1].score).toBe(0);
+  });
 });

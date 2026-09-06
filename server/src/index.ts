@@ -111,6 +111,25 @@ io.on('connection', (socket) => {
     }
   });
 
+  // 6c. Restart Game / Play Again (Starts a fresh match for the table)
+  socket.on('room:restart', (callback) => {
+    try {
+      const result = roomManager.restartGame(socket.id);
+      if (typeof callback === 'function') callback(result);
+    } catch (err: any) {
+      if (typeof callback === 'function') callback({ success: false, error: err.message });
+    }
+  });
+
+  socket.on('game:restart', (callback) => {
+    try {
+      const result = roomManager.restartGame(socket.id);
+      if (typeof callback === 'function') callback(result);
+    } catch (err: any) {
+      if (typeof callback === 'function') callback({ success: false, error: err.message });
+    }
+  });
+
   // 6b. Select Starter (Manager chooses who starts the round after starting game/round)
   socket.on('game:select_starter', ({ playerId }, callback) => {
     try {
