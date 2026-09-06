@@ -88,7 +88,9 @@ export const RoundOverModal: React.FC<RoundOverModalProps> = ({
           </div>
 
           <h2 className="text-xl font-black text-white">
-            {state.isBlocked
+            {state.blockedReason?.includes('Manager')
+              ? `Round ${state.roundNumber} Ended by Manager`
+              : state.isBlocked
               ? `Round ${state.roundNumber} Blocked!`
               : winner
               ? `${winner.nickname} Won Round ${state.roundNumber}!`
@@ -97,7 +99,7 @@ export const RoundOverModal: React.FC<RoundOverModalProps> = ({
 
           {state.isBlocked ? (
             <p className="text-xs text-amber-300 font-bold max-w-md px-2">
-              {state.blockedReason || 'Game blocked! No further moves are possible.'}
+              {state.blockedReason || 'Round ended! No further moves are possible.'}
             </p>
           ) : (
             <p className="text-xs text-emerald-400 font-semibold">
@@ -111,7 +113,7 @@ export const RoundOverModal: React.FC<RoundOverModalProps> = ({
           <div className="flex items-center justify-between font-bold text-slate-300">
             <div className="flex items-center gap-1.5">
               <Eye size={15} className="text-emerald-400" />
-              <span>Revealed Hands & Remaining Pips</span>
+              <span>Revealed Hands & Dots (Pips)</span>
             </div>
 
             {/* Manager quick toggle to edit scores */}
@@ -127,12 +129,13 @@ export const RoundOverModal: React.FC<RoundOverModalProps> = ({
             )}
           </div>
 
-          {/* Blocked Game Notice */}
+          {/* Blocked / Ended Game Notice */}
           {state.isBlocked && (
             <div className="p-2.5 rounded-xl bg-amber-950/60 border border-amber-500/40 text-amber-200 flex items-center justify-between gap-2">
               <span className="font-semibold text-[11px]">
-                Game blocked across all ends! Remaining dominoes and exact pips are revealed for all players.
-                {isHost && ' You can edit each player’s points directly below.'}
+                {state.blockedReason?.includes('Manager')
+                  ? 'Round ended by manager ("la partie")! Each player’s remaining dots are revealed below. You can edit each player’s points directly.'
+                  : 'Game blocked across all ends! Remaining dominoes and exact dots are revealed for all players. Manager can edit each player’s points directly below.'}
               </span>
             </div>
           )}
@@ -173,10 +176,10 @@ export const RoundOverModal: React.FC<RoundOverModalProps> = ({
                       {/* Hand count & pips description */}
                       <span className="text-slate-300 bg-slate-900/80 px-2 py-0.5 rounded-lg border border-slate-700">
                         {hand.length === 0 ? (
-                          <span className="text-emerald-400 font-bold">0 tiles (0 pips)</span>
+                          <span className="text-emerald-400 font-bold">0 dominoes (0 dots)</span>
                         ) : (
                           <span>
-                            {hand.length} tile(s) • <strong className="text-amber-300">{totalHandPips} pips</strong>
+                            {hand.length} dominoes • <strong className="text-amber-300">{totalHandPips} dots</strong>
                           </span>
                         )}
                       </span>

@@ -200,7 +200,17 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 11b. Manager Finishes Match
+  // 11b. Manager Finishes Current Round
+  socket.on('game:finish_round', (callback) => {
+    try {
+      const result = roomManager.finishRound(socket.id);
+      callback(result);
+    } catch (err: any) {
+      callback({ success: false, error: err.message });
+    }
+  });
+
+  // 11c. Manager Finishes Match
   socket.on('game:finish_game', (callback) => {
     try {
       const result = roomManager.finishGame(socket.id);

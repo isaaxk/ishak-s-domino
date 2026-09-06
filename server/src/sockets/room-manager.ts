@@ -22,6 +22,7 @@ import {
   passTurnAction,
   undoPassAction,
   selectStartingPlayerAction,
+  finishRoundAction,
   finishGameAction,
   updatePlayerScoresAction,
   EngineSession,
@@ -768,6 +769,21 @@ export class RoomManager {
     if (!session) return { success: false, error: 'Session not found' };
 
     const result = undoPassAction(session, meta.playerId);
+    if (result.success) {
+      this.db.saveGameState(meta.roomId, session.state, session.privateHands, session.boneyard);
+      this.broadcastRoomState(meta.roomId);
+    }
+    return result;
+  }
+
+  finishRound(socketId: string): { success: boolean; error?: string } {
+    const meta = this.socketToPlayer.get(socketId);
+    if (!meta) return { success: false, error: 'Not in a room' };
+
+    const session = this.sessions.get(meta.roomId);
+    if (!session) return { success: false, error: 'Session not found' };
+
+    const result = finishRoundAction(session, meta.playerId);
     if (result.success) {
       this.db.saveGameState(meta.roomId, session.state, session.privateHands, session.boneyard);
       this.broadcastRoomState(meta.roomId);

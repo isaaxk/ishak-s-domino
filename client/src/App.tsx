@@ -316,11 +316,20 @@ export function App() {
     handleNextRound();
   };
 
-  // Manager forces finish game
+  // Manager forces finish current round ("la partie")
+  const handleFinishRound = () => {
+    playSound('click');
+    socket.emit('game:finish_round', (res) => {
+      if (res.success) {
+        showToast('Round ended by manager! Hand dots revealed.', 'info');
+      } else {
+        showToast(res.error || 'Failed to end round', 'error');
+      }
+    });
+  };
+
+  // Manager forces finish entire match
   const handleFinishGame = () => {
-    if (!window.confirm('Are you sure you want to finish the game now? The player with the highest score will win.')) {
-      return;
-    }
     playSound('click');
     socket.emit('game:finish_game', (res) => {
       if (res.success) {
@@ -589,6 +598,7 @@ export function App() {
             onOpenSettings={() => setIsSettingsOpen(true)}
             onOpenHelp={() => setIsHelpOpen(true)}
             onOpenEditScores={() => setIsEditScoresOpen(true)}
+            onFinishRound={handleFinishRound}
             onFinishGame={handleFinishGame}
             onLeaveRoom={handleLeaveRoom}
             onKickPlayer={handleKickPlayer}

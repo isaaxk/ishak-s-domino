@@ -915,6 +915,61 @@ export function selectStartingPlayerAction(
 }
 
 /**
+ * Allows the room manager (host) to finish just the current round ("la partie") at any time.
+ * Reveals all players' hands and exact dot counts, marks the round as finished,
+ * and allows the manager to edit each player's score points.
+ */
+export function finishRoundAction(
+  session: EngineSession,
+  callerPlayerId: string
+): { success: boolean; error?: string } {
+  const { state } = session;
+  const caller = state.players.find((p) => p.id === callerPlayerId);
+  if (!caller || !caller.isHost) {
+    return { success: false, error: 'Only the room manager can end the round' };
+  }
+
+  if (state.phase !== 'playing' && state.phase !== 'selecting_starter') {
+    return { success: false, error: 'Cannot end round: round is not active' };
+  }
+
+  // Clear any unconfirmed staged tiles
+  state.pendingPlacements = [];
+
+  // Reveal all hands
+  state.revealedHands = { ...session.privateHands };
+
+  // Evaluate lowest pip holder
+  const blockedEval = evaluateBlockedRound(
+    state.players.map((p) => p.id),
+    session.privateHands
+  );
+  state.roundWinnerId = blockedEval.winnerId;
+
+  state.phase = 'round_finished';
+  state.isBlocked = true;
+  state.blockedReason = `${caller.nickname} (Manager) ended Round ${state.roundNumber}.`;
+
+  // Reset pass and last move controls
+  session.lastPass = null;
+  state.canUndoPass = false;
+  state.lastPassPlayerId = null;
+  session.lastConfirmedMove = null;
+  state.canChangeLastMove = false;
+
+  state.lastMoveSummary = {
+    playerId: callerPlayerId,
+    playerNickname: caller.nickname,
+    moveType: 'play',
+    pointsAwarded: 0,
+    description: `${caller.nickname} (Manager) ended Round ${state.roundNumber}`,
+    timestamp: Date.now(),
+  };
+
+  return { success: true };
+}
+
+/**
  * Allows the room manager (host) to finish the match at any time via a dedicated button.
  */
 export function finishGameAction(

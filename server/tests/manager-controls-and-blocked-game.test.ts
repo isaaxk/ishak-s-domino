@@ -5,6 +5,7 @@ import {
   confirmTurnAction,
   passTurnAction,
   finishGameAction,
+  finishRoundAction,
   updatePlayerScoresAction,
   checkBoardBlocked,
   drawTileAction,
@@ -52,6 +53,32 @@ describe('Manager Game Controls & Classic Blocked Game Flow', () => {
       expect(session.state.gameWinnerId).toBe('player-2'); // Bob had 80 pts vs Alice 45 pts
       expect(session.state.revealedHands).toBeDefined();
       expect(session.state.lastMoveSummary?.description).toContain('finished the match');
+    });
+  });
+
+  describe('finishRoundAction', () => {
+    it('allows manager to finish just the current round ("la partie"), reveals hands and enables score editing', () => {
+      const players = createTestPlayers();
+      const session = startNewRound('ROOM-1', DEFAULT_SETTINGS, players, 1);
+
+      // Non-manager attempts to finish round -> should fail
+      const nonHostRes = finishRoundAction(session, 'player-2');
+      expect(nonHostRes.success).toBe(false);
+      expect(nonHostRes.error).toContain('Only the room manager');
+
+      // Manager finishes round -> success
+      const hostRes = finishRoundAction(session, 'player-1');
+      expect(hostRes.success).toBe(true);
+      expect(session.state.phase).toBe('round_finished');
+      expect(session.state.isBlocked).toBe(true);
+      expect(session.state.blockedReason).toContain('Alice (Manager) ended Round 1');
+      expect(session.state.revealedHands).toBeDefined();
+      expect(session.state.lastMoveSummary?.description).toContain('ended Round 1');
+
+      // Attempting to finish round again when not in active phase -> fails
+      const repeatRes = finishRoundAction(session, 'player-1');
+      expect(repeatRes.success).toBe(false);
+      expect(repeatRes.error).toContain('round is not active');
     });
   });
 

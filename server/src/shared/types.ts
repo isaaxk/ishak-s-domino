@@ -234,6 +234,10 @@ export interface ClientToServerEvents {
     callback: (res: { success: boolean; error?: string }) => void
   ) => void;
 
+  'game:finish_round': (
+    callback: (res: { success: boolean; error?: string }) => void
+  ) => void;
+
   'game:finish_game': (
     callback: (res: { success: boolean; error?: string }) => void
   ) => void;

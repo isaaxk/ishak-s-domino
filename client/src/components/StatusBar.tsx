@@ -1,6 +1,6 @@
 import React from 'react';
 import type { PlayerState, GameSettings } from '../../../shared/types.js';
-import { Settings, Copy, Check, Info, LogOut, UserX, Edit3, Flag } from 'lucide-react';
+import { Settings, Copy, Check, Info, LogOut, UserX, Edit3, Flag, Square } from 'lucide-react';
 
 interface StatusBarProps {
   roomId: string;
@@ -14,6 +14,7 @@ interface StatusBarProps {
   onOpenSettings: () => void;
   onOpenHelp: () => void;
   onOpenEditScores?: () => void;
+  onFinishRound?: () => void;
   onFinishGame?: () => void;
   onLeaveRoom: () => void;
   onKickPlayer?: (playerId: string) => void;
@@ -31,6 +32,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({
   onOpenSettings,
   onOpenHelp,
   onOpenEditScores,
+  onFinishRound,
   onFinishGame,
   onLeaveRoom,
   onKickPlayer,
@@ -79,24 +81,38 @@ export const StatusBar: React.FC<StatusBarProps> = ({
 
           {isHost && (
             <>
-              <button
-                onClick={onOpenEditScores}
-                className="flex items-center gap-1 px-2 py-1 text-xs text-amber-300 hover:text-white bg-amber-950/60 hover:bg-amber-800 rounded-lg border border-amber-600/50 transition font-bold"
-                title="Edit Player Scores"
-              >
-                <Edit3 size={13} /> Scores
-              </button>
+              {onFinishRound && (
+                <button
+                  onClick={() => {
+                    if (confirm('End this round now ("la partie")? Hand dots will be revealed, and you can edit player scores.')) {
+                      onFinishRound();
+                    }
+                  }}
+                  className="flex items-center gap-1 px-2 py-1 text-xs text-amber-200 hover:text-white bg-amber-900/60 hover:bg-amber-800 rounded-lg border border-amber-600/50 transition font-bold"
+                  title="End This Round (Reveals Hand Dots & Lets Manager Edit Points)"
+                >
+                  <Square size={12} /> End Round
+                </button>
+              )}
 
               <button
                 onClick={() => {
-                  if (confirm('Are you sure you want to finish the match now? Final scores will be locked.')) {
+                  if (confirm('Are you sure you want to finish the ENTIRE game now? The player with the highest total score will win.')) {
                     onFinishGame?.();
                   }
                 }}
                 className="flex items-center gap-1 px-2 py-1 text-xs text-rose-300 hover:text-white bg-rose-950/60 hover:bg-rose-900 rounded-lg border border-rose-600/50 transition font-bold"
-                title="Finish Match Now"
+                title="End Entire Game (Declare Final Winner)"
               >
-                <Flag size={13} /> Finish
+                <Flag size={12} /> End Game
+              </button>
+
+              <button
+                onClick={onOpenEditScores}
+                className="flex items-center gap-1 px-2 py-1 text-xs text-blue-300 hover:text-white bg-blue-950/60 hover:bg-blue-800 rounded-lg border border-blue-600/50 transition font-bold"
+                title="Edit Player Scores Anytime"
+              >
+                <Edit3 size={12} /> Scores
               </button>
 
               <button
